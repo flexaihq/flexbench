@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # Terminal 1: Run the VLLM server
-CUDA_VISIBLE_DEVICES=0 vllm serve \
-    --model Qwen/Qwen2.5-VL-7B-Instruct \
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-VL-7B-Instruct \
     --max-model-len=2048 \
     --disable-log-requests \
     --port 8000

@@ -8,10 +8,16 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install dependencies:
+2. Install dependencies and project:
 
 ```sh
 uv sync
+uv pip install -e .
+```
+
+3. Activate virtual environment:
+
+```sh
 source .venv/bin/activate
 ```
 

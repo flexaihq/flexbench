@@ -94,7 +94,7 @@ class VisionDataset(MLPerfDataset):
             ]
             return {"messages": messages}
         except Exception as e:
-            log.warning(f"Failed to process sample: {e}")
+            log.debug(f"Failed to process sample: {e}")
             return None
 
     def load_from_huggingface(self, dataset_path: str, split: str = "train") -> None:

@@ -8,6 +8,8 @@ dependencies = [
     "accelerate>=1.4.0",
     "datasets>=3.2.0",
     "evaluate>=0.4.3",
+    "flash-attn>=2.7.4.post1",
+    "flashinfer-python>=0.2.3",
     "mlcommons-loadgen>=5.0.15",
     "nltk>=3.9.1",
     "pandas>=2.2.3",
@@ -22,3 +24,6 @@ dependencies = [
 dev = [
     "ipykernel>=6.29.5",
 ]
+
+[tool.uv]
+no-build-isolation-package = ["flash-attn"]

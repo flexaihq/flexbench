@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # Terminal 1: Run the VLLM server
-CUDA_VISIBLE_DEVICES=0 vllm serve \
-    --model deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+CUDA_VISIBLE_DEVICES=0 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --max-model-len=2048 \
     --disable-log-requests \
     --port 8000
