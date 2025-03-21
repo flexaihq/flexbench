@@ -1,0 +1,24 @@
+[project]
+name = "FlexBench"
+version = "0.1.0"
+description = "FlexAI Universal Benchmarking"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "accelerate>=1.4.0",
+    "datasets>=3.2.0",
+    "evaluate>=0.4.3",
+    "mlcommons-loadgen>=5.0.15",
+    "nltk>=3.9.1",
+    "pandas>=2.2.3",
+    "rouge-score>=0.1.2",
+    "sentencepiece>=0.2.0",
+    "torch>=2.5.1",
+    "transformers>=4.48.3",
+    "vllm>=0.7.2",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
