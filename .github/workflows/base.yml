@@ -22,6 +22,7 @@ jobs:
       - name: Setup Auth
         id: auth
         uses: flexaihq/actions/setup-auth@main
+        if: always()
         with:
           vault-enabled: "true"
           vault-auth-secrets-auto: "true"
