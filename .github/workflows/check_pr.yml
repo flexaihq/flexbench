@@ -1,0 +1,20 @@
+name: Check PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-contents:
+    name: Analyze PR contents
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check Jira references
+        uses: flexaihq/actions/check-jira-ref@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

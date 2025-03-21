@@ -1,0 +1,55 @@
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+  pull-requests: write
+  contents: read
+  actions: read
+
+jobs:
+  common-ci-checks:
+    name: Common CI Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 5
+
+      - name: Setup Auth
+        id: auth
+        uses: flexaihq/actions/setup-auth@main
+        with:
+          vault-enabled: "true"
+          vault-auth-secrets-auto: "true"
+
+      # always last steps
+      - name: Get Author Slack ID
+        if: failure()
+        id: get-author-slack-id
+        shell: bash
+        run: |
+          SLACK_IDS="${{ vars.SLACK_IDS }}"
+          SLACK_ID=$(echo "$SLACK_IDS" | jq -r '."${{ github.actor }}"')
+          # If a Slack ID was found, use it to tag the user. Otherwise, use the GitHub username.
+          if [ -n "$SLACK_ID" ]; then
+            SLACK_TAGS="$SLACK_ID"
+            echo "Found ID: @${{ github.actor }} $SLACK_TAGS"
+          else
+            SLACK_TAGS="${{ github.actor }}"
+            echo "No ID found: $SLACK_TAGS"
+          fi
+          echo "SLACK_TAGS=$SLACK_TAGS" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack On Fail
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          fields: job,repository,commit,author
+          mention: ${{ env.SLACK_TAGS }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
