@@ -11,37 +11,29 @@ log = get_logger(__name__)
 
 def get_args():
     parser = argparse.ArgumentParser(description="MLPerf Inference Benchmark")
+
+    # Required arguments
     parser.add_argument(
         "--task",
         choices=["text", "vision"],
-        default="text",
-        help="Task type (e.g., text generation, image captioning)",
+        required=True,
+        help="Task type (text or vision)",
     )
     parser.add_argument(
         "--model-path",
         required=True,
-        help="Model name or path",
-    )
-    parser.add_argument(
-        "--tokenizer-path",
-        help="Tokenizer name or path (optional). "
-        "Useful if the model name in the API is different from the tokenizer name.",
-        default=None,
+        help="Model name on HuggingFace or local path",
     )
     parser.add_argument(
         "--api-server",
         required=True,
-        help="Model API endpoint URL",
-    )
-    parser.add_argument(
-        "--api-token",
-        help="API token for authentication",
+        help="vLLM API server URL (default: http://localhost:8000)",
     )
     parser.add_argument(
         "--scenario",
         choices=["Offline", "Server"],
         required=True,
-        help="Benchmark scenario",
+        help="MLPerf scenario (Offline or Server)",
     )
     parser.add_argument(
         "--target-qps",
@@ -51,13 +43,45 @@ def get_args():
     )
     parser.add_argument(
         "--dataset-path",
-        default="ctuning/MLPerf-OpenOrca",
-        help="Dataset path",
+        required=True,
+        help="Dataset path on HuggingFace or local pickle file",
+    )
+    parser.add_argument(
+        "--dataset-input-column",
+        required=True,
+        help="Input text column name in dataset",
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--dataset-output-column",
+        help="Reference text column name in dataset (required for accuracy mode)",
+    )
+    parser.add_argument(
+        "--accuracy",
+        action="store_true",
+        help="Run accuracy evaluation (default: performance mode)",
     )
     parser.add_argument(
         "--dataset-split",
         default="train",
-        help="Dataset split",
+        help="Dataset split to use (default: train)",
+    )
+    parser.add_argument(
+        "--dataset-system-prompt-column",
+        help="System prompt column name",
+    )
+    parser.add_argument(
+        "--dataset-image-column",
+        help="Image column name (required for vision tasks)",
+    )
+    parser.add_argument(
+        "--tokenizer-path",
+        help="Custom tokenizer path if different from model",
+    )
+    parser.add_argument(
+        "--api-token",
+        help="API authentication token",
     )
     parser.add_argument(
         "--total-sample-count",
@@ -70,35 +94,10 @@ def get_args():
         help="Batch size for offline scenario",
     )
     parser.add_argument(
-        "--dataset-input-column",
-        default="question",
-        help="Input column name in dataset",
-    )
-    parser.add_argument(
-        "--dataset-output-column",
-        default="response",
-        help="Output column name in dataset",
-    )
-    parser.add_argument(
-        "--dataset-system-prompt-column",
-        default="system_prompt",
-        help="System prompt column name in dataset",
-    )
-    parser.add_argument(
-        "--dataset-image-column",
-        default="image",
-        help="Image column name in dataset",
-    )
-    parser.add_argument(
         "--max-generated-tokens",
         type=int,
         default=1024,
-        help="Maximum number of tokens to generate",
-    )
-    parser.add_argument(
-        "--accuracy",
-        action="store_true",
-        help="Run accuracy evaluation instead of performance benchmark",
+        help="Maximum tokens to generate (default: 1024)",
     )
     return parser.parse_args()
 

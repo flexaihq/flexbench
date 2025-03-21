@@ -16,10 +16,15 @@ class DatasetConfig:
 
     path: str
     input_column: str
-    output_column: str | None = None
+    output_column: str | None = None  # Only required for accuracy
     system_prompt_column: str | None = None
     image_column: str | None = None
     split: str = "train"
+    accuracy_mode: bool = False
+
+    def __post_init__(self):
+        if self.accuracy_mode and not self.output_column:
+            raise ValueError("output_column is required when running in accuracy mode")
 
 
 @dataclass
@@ -41,6 +46,9 @@ class MLPerfDataset(ABC):
         self.config = dataset_config
         self.raw_samples = []
         self.samples = []
+
+        if dataset_config.accuracy_mode and not dataset_config.output_column:
+            raise ValueError("output_column must be specified for accuracy evaluation")
 
         if dataset_config.path.endswith((".pkl.gz", ".pkl")):
             self.load_from_pickle(dataset_config.path)
@@ -97,8 +105,11 @@ class MLPerfDataset(ABC):
 
     def get_references(self) -> ReferenceData:
         """Get raw reference data for accuracy evaluation."""
-        if not self.raw_samples:
-            log.warning("No samples found for reference data")
+        if not self.config.accuracy_mode:
+            return ReferenceData([], [], [])
+
+        if not self.raw_samples or not self.config.output_column:
+            log.warning("No samples or output column found for reference data")
             return ReferenceData([], [], [])
 
         return ReferenceData(

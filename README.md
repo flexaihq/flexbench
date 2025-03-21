@@ -36,10 +36,24 @@ export MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"  # or local pickle
 
 ## Supported Datasets
 
-- HF Datasets: `Open-Orca/OpenOrca`, `ctuning/MLPerf-OpenOrca`, `AI-MO/NuminaMath-TIR`, `ctuning/MLPerf-OpenOrca` (equivalent to `mlcommons-inference-wg-public/open_orca`)
-- MLPerf Preprocessed `OpenOrca` pickle (`mlcommons-inference-wg-public/open_orca`): see [official instructions](https://github.com/mlcommons/inference/blob/master/language/llama2-70b/README.md#preprocessed)
+### Text Tasks
 
-To support another HF dataset, you must add the columns mapping (input and output column names) to [DATASET_CONFIGS](dataset.py).
+Any dataset from HuggingFace should be supported, as long as you specify the correct column names for:
+
+- Input text (`--dataset-input-column`)
+- Output/reference text (`--dataset-output-column`)
+- System prompt (optional, `--dataset-system-prompt-column`)
+
+Common datasets used for benchmarking:
+
+- `ctuning/MLPerf-OpenOrca`
+- `Open-Orca/OpenOrca`
+- `AI-MO/NuminaMath-TIR`
+
+### Vision Tasks
+
+Currently only supports the `philschmid/amazon-product-descriptions-vlm` dataset (Work in Progress).
+Support for additional vision datasets is planned.
 
 Example dataset configuration:
 
@@ -100,60 +114,29 @@ python main.py \
 ```
 
 Available arguments:
-- `--task`: Task type, between `text` or `vision`.
-- `--scenario`: Choose between `Offline` and `Server`
-- `--accuracy`: Accuracy mode (default if not enabled: performance mode)
-- `--api-server`: URL of the vLLM API server (default: `http://localhost:8000`)
-- `--api-token`: Optional API token for authentication
-- `--dataset-path`: Path to dataset on HuggingFace or local pickle file
+
+Required arguments:
+
+- `--task`: Task type (`text` or `vision`)
+- `--model-path`: Model name on HuggingFace or local path
+- `--api-server`: vLLM API server URL (default: `http://localhost:8000`)
+- `--scenario`: MLPerf scenario (`Offline` or `Server`)
+- `--target-qps`: Target queries per second
+- `--dataset-path`: Dataset path on HuggingFace or local pickle file
+- `--dataset-input-column`: Input text column name in dataset
+
+Optional arguments:
+
+- `--accuracy`: Run accuracy evaluation (default: performance mode)  
+- `--dataset-output-column`: Reference text column name (required for accuracy mode)
 - `--dataset-split`: Dataset split to use (default: `train`)
-- `--dataset-input-column`: Name of the input column in dataset
-- `--dataset-output-column`: Name of the output/reference column in dataset
-- `--dataset-system-prompt-column`: Optional name of system prompt column
-- `--dataset-image-column`: Optional name of image column, in case the task selected is `vision`
+- `--dataset-system-prompt-column`: System prompt column name
+- `--dataset-image-column`: Image column name (required for vision tasks)
+- `--tokenizer-path`: Custom tokenizer path if different from model
+- `--api-token`: API authentication token
 - `--total-sample-count`: Number of samples to process
 - `--batch-size`: Batch size for offline scenario
-- `--max-generated-tokens`: Maximum number of tokens to generate per vLLM request (default: 1024)
-- `--tokenizer-path`: Optional HF tokenizer path, in case it is different from the model path (e.g. using a custom model name in vLLM)
-
-<!-- ### 3. Alternative: vLLM Benchmarking (WIP)
-
-For HuggingFace datasets only, you can use vLLM's built-in benchmarking tools.
-
-#### Setup
-
-1. Get and patch vLLM's benchmarking script:
-
-```sh
-git clone --branch v0.7.3 --depth 1 https://github.com/vllm-project/vllm.git
-cd vllm/ && git apply ../vllm_fix.patch && cd ..
-```
-
-Note: the patch only works for a few datasets (`AI-MO/NuminaMath-TIR`, `Open-Orca/OpenOrca`) for now. TODO: create dataset-agnostic patch.
-
-#### Server Mode Benchmark
-
-```sh
-python vllm/benchmarks/benchmark_serving.py \
-    --model $MODEL_PATH \
-    --dataset-name hf \
-    --dataset-path $DATASET_PATH \
-    --hf-subset default \
-    --num-prompts 24576 \
-    --request-rate 10
-```
-
-#### Offline Mode Benchmark
-
-```sh
-CUDA_VISIBLE_DEVICES=0 python vllm/benchmarks/benchmark_throughput.py \
-    --model $MODEL_PATH \
-    --dataset $DATASET_PATH \
-    --hf-subset default \
-    --num-prompts 24576
-```
-
-Note: The offline benchmark launches its own vLLM instance, so ensure no other vLLM server is running. -->
+- `--max-generated-tokens`: Max tokens to generate (default: 1024)
 
 ## Profiling
 
