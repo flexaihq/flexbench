@@ -1,5 +1,4 @@
 import textwrap
-import typing as tp
 
 from flexbench.dataset.base import DatasetConfig, MLPerfDataset
 from flexbench.utils import get_logger

@@ -5,13 +5,14 @@ from flexbench.dataset.base import DatasetConfig
 
 
 @dataclass
-class LoadgenConfig:
-    """Configuration for MLPerf loadgen settings"""
+class BenchmarkingConfig:
+    """Configuration for benchmarking settings."""
 
     scenario: tp.Literal["Offline", "Server"]
     target_qps: float
     accuracy: bool
     total_sample_count: int | None = None
+    batch_size: int | None = None
     model_name: str = "llama2-70b"
     config_path: str = "user.conf"
     enable_trace: bool = False
@@ -26,7 +27,7 @@ class BenchmarkConfig:
     model_path: str
     api_server: str
     dataset_config: DatasetConfig
-    loadgen_config: LoadgenConfig
+    benchmarking_config: BenchmarkingConfig
     tokenizer_path: str | None = None
     api_token: str | None = None
     batch_size: int | None = None
