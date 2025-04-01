@@ -114,12 +114,16 @@ class MLPerfDataset(ABC):
             return ReferenceData([], [], [])
 
         if not self.config.output_column:
-            log.error(f"Output column '{self.config.output_column}' not found in dataset")
+            log.error(
+                f"Output column '{self.config.output_column}' not found in dataset"
+            )
             return ReferenceData([], [], [])
 
         log.debug(f"Processing {len(self.raw_samples)} raw samples for references")
         try:
-            references = [sample[self.config.output_column] for sample in self.raw_samples]
+            references = [
+                sample[self.config.output_column] for sample in self.raw_samples
+            ]
             inputs = [sample[self.config.input_column] for sample in self.raw_samples]
             system_prompts = [
                 (
@@ -132,7 +136,9 @@ class MLPerfDataset(ABC):
             log.debug(f"Created reference data with {len(references)} entries")
             return ReferenceData(references, inputs, system_prompts)
         except KeyError as e:
-            log.error(f"Column access error: {e}. Available columns: {list(self.raw_samples[0].keys()) if self.raw_samples else 'no samples'}")
+            log.error(
+                f"Column access error: {e}. Available columns: {list(self.raw_samples[0].keys()) if self.raw_samples else 'no samples'}"
+            )
             return ReferenceData([], [], [])
 
     def LoadSamplesToRam(self, sample_list: list) -> None:

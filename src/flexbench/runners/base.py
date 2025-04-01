@@ -1,15 +1,17 @@
+import threading
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from transformers import AutoTokenizer
-import threading
+
 import requests
+from transformers import AutoTokenizer
 
 from flexbench.configs import BenchmarkConfig
 from flexbench.dataset.factory import create_dataset
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
+
 
 class BaseRunner(ABC):
     """Base class for benchmark runners."""
@@ -20,9 +22,10 @@ class BaseRunner(ABC):
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
-    def run(self) -> dict:
+    async def run(self) -> dict:
         """Run benchmark and return results."""
         pass
+
 
 class BaseBackend(ABC):
     """Base class for benchmark backends."""
@@ -41,10 +44,12 @@ class BaseBackend(ABC):
             padding_side="left",
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        
+
         # Common tracking
         self._active = False
-        self.total_sample_count = config.benchmarking_config.total_sample_count or len(self.dataset)
+        self.total_sample_count = config.benchmarking_config.total_sample_count or len(
+            self.dataset
+        )
         self.sample_counter = 0
         self.sample_counter_lock = threading.Lock()
 
@@ -53,7 +58,7 @@ class BaseBackend(ABC):
         """Start the backend."""
         self._active = True
 
-    @abstractmethod  
+    @abstractmethod
     def stop(self):
         """Stop the backend."""
         self._active = False
@@ -97,8 +102,7 @@ class BaseBackend(ABC):
         headers = {
             "Content-Type": "application/json",
             "Authorization": (
-                f"Bearer {self.config.api_token}" 
-                if self.config.api_token else None
+                f"Bearer {self.config.api_token}" if self.config.api_token else None
             ),
         }
         endpoint, payload = self._create_api_payload(inputs, stream)

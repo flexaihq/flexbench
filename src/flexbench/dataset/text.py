@@ -40,6 +40,17 @@ MODEL_CONFIGS = {
             """
         ),
     },
+    "smollm": {  # Added SmolLM support
+        "pattern": "smollm",
+        "template": textwrap.dedent(
+            """
+            {system_prompt}
+
+            Human: {user_message}
+
+            Assistant:"""
+        ),
+    },
 }
 
 
@@ -61,25 +72,39 @@ class TextDataset(MLPerfDataset):
     def get_model_type(self) -> str:
         """Determine model type from model path."""
         model_path = self.model_path.lower()
+
+        # Check for SmolLM first
+        if "smollm" in model_path:
+            log.info("Detected SmolLM model, using SmolLM template")
+            return "smollm"
+
+        # Then check other models
         for model_type, config in MODEL_CONFIGS.items():
             if config["pattern"] in model_path:
                 log.info(
                     f"Detected model type: {model_type} with chat template: {repr(config['template'])}"
                 )
                 return model_type
+
+        # Default to SmolLM for instruction models
         log.warning(
             f"Model type not found among {list(MODEL_CONFIGS.keys())}. "
-            "Defaulting to 'unknown' with no specific chat template."
+            "Using SmolLM template for instruction model."
         )
-        return "unknown"
+        return "smollm"
 
     def _format_sample(self, sample: dict) -> str:
         """Format a sample using the appropriate template."""
-        if sample.get(self.config.system_prompt_column):
-            config = MODEL_CONFIGS.get(self.model_type, {})
-            template: str = config.get("template", "{system_prompt}\n\n{user_message}")
-            return template.format(
-                system_prompt=sample[self.config.system_prompt_column],
-                user_message=sample[self.config.input_column],
-            ).strip()
-        return sample[self.config.input_column]
+        system_prompt = (
+            sample.get(self.config.system_prompt_column, "")
+            if self.config.system_prompt_column
+            else "You are an AI assistant that helps people find information."
+        )
+
+        config = MODEL_CONFIGS.get(self.model_type, MODEL_CONFIGS["smollm"])
+        template = config["template"]
+
+        return template.format(
+            system_prompt=system_prompt,
+            user_message=sample[self.config.input_column],
+        ).strip()

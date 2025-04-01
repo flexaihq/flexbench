@@ -3,10 +3,11 @@ import json
 import os
 import queue
 import threading
-import numpy as np
-import mlperf_loadgen as lg
-import urllib3
 from pathlib import Path
+
+import mlperf_loadgen as lg
+import numpy as np
+import urllib3
 
 from flexbench.configs import BenchmarkConfig
 from flexbench.runners.base import BaseBackend
@@ -24,7 +25,7 @@ class LoadGenBackend(BaseBackend):
         super().__init__(config)
         self.results_dir = results_dir
         self.task_type = config.task
-        
+
         # Initialize MLPerf QSL once for both scenarios
         self._qsl = lg.ConstructQSL(
             self.total_sample_count,
@@ -35,7 +36,8 @@ class LoadGenBackend(BaseBackend):
 
         # Create appropriate scenario backend
         self._scenario = (
-            LoadGenOfflineBackend if config.benchmarking_config.scenario == "Offline"
+            LoadGenOfflineBackend
+            if config.benchmarking_config.scenario == "Offline"
             else LoadGenServerBackend
         )(config=config, parent=self)
 
@@ -50,11 +52,13 @@ class LoadGenBackend(BaseBackend):
     def process_query(self, query: dict) -> dict:
         return self._scenario.process_query(query)
 
-    @property 
-    def sut(self): return self._scenario.sut
+    @property
+    def sut(self):
+        return self._scenario.sut
 
     @property
-    def qsl(self): return self._qsl
+    def qsl(self):
+        return self._qsl
 
     def submit_lg_response(
         self, token_ids: list[int], query_id: int, first_token: bool = False
@@ -88,14 +92,16 @@ class LoadGenOfflineBackend:
         self.batch_size = config.batch_size or parent.total_sample_count
         self.worker_threads: list[threading.Thread] = []
         self.query_queue = queue.Queue()
-        
+
         # Initialize MLPerf SUT
         self._sut = lg.ConstructSUT(self.issue_queries, self.flush_queries)
 
-    def flush_queries(self): pass
+    def flush_queries(self):
+        pass
 
     @property
-    def sut(self): return self._sut
+    def sut(self):
+        return self._sut
 
     def process_query(self, query_sample: lg.QuerySample) -> None:
         """Process a single query sample (required for interface but not used)."""
@@ -125,7 +131,7 @@ class LoadGenOfflineBackend:
             self.start()
 
         for i in range(0, len(query_samples), self.batch_size):
-            batch = query_samples[i:i + self.batch_size]
+            batch = query_samples[i : i + self.batch_size]
             self.query_queue.put(batch)
 
     def process_queries(self) -> None:
@@ -139,7 +145,7 @@ class LoadGenOfflineBackend:
             inputs = [self.parent.dataset.get_sample(q.index) for q in batch]
             response = self.parent._make_api_request(inputs, stream=False)
             outputs = response["choices"]
-            
+
             for i, output in enumerate(outputs):
                 output_text = output["text"]
                 self.parent.process_completion(output_text, batch[i].id)
@@ -152,15 +158,18 @@ class LoadGenServerBackend:
     def __init__(self, config: BenchmarkConfig, parent: LoadGenBackend):
         self.config = config
         self.parent = parent
+        self.dataset = parent.dataset  # Add dataset access from parent
         self.first_token_queue = queue.Queue()
-        
+
         # Initialize MLPerf SUT
         self._sut = lg.ConstructSUT(self.issue_queries, self.flush_queries)
-        
-    def flush_queries(self): pass
+
+    def flush_queries(self):
+        pass
 
     @property
-    def sut(self): return self._sut
+    def sut(self):
+        return self._sut
 
     def start(self) -> None:
         """Start first token processing thread."""
@@ -184,8 +193,8 @@ class LoadGenServerBackend:
 
     def process_query(self, query_sample: lg.QuerySample) -> None:
         """Process a single query with streaming response."""
-        input_data = self.dataset.samples[query_sample.index]
-        response = self._make_api_request(input_data, stream=True)
+        input_data = self.dataset.get_sample(query_sample.index)
+        response = self.parent._make_api_request(input_data, stream=True)
         text_cache = ""
         first_token_sent = False
 
@@ -198,7 +207,9 @@ class LoadGenServerBackend:
                 continue
 
             token_data = json.loads(decoded[6:])
-            token_text = self._process_response(token_data, streaming=True)
+            token_text = self.parent._process_response(
+                token_data, streaming=True
+            )  # Use parent's method
 
             if not token_text:
                 continue
@@ -212,7 +223,7 @@ class LoadGenServerBackend:
             text_cache += token_text
 
         self.parent.process_completion(text_cache, query_sample.id)
-        self._update_counter()
+        self.parent._update_counter()  # Use parent's counter update
 
     def process_first_tokens(self) -> None:
         """Process and submit first tokens from streaming responses."""

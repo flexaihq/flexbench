@@ -39,8 +39,10 @@ def compute_rouge_chunk(args):
 def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     """Compute ROUGE scores and token statistics."""
     metric = evaluate.load("rouge")
-    
-    log.debug(f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references")
+
+    log.debug(
+        f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references"
+    )
     if not preds or not refs:
         log.warning(f"Empty predictions ({len(preds)}) or references ({len(refs)})")
         return {}, 0
@@ -54,7 +56,7 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
 
     with Pool() as pool:
         results_list = pool.map(compute_rouge_chunk, chunks)
-        
+
     if not results_list:
         log.warning("No ROUGE results computed")
         return {}, 0
@@ -165,7 +167,7 @@ def run_accuracy_check(
     log.info(f"Computing ROUGE scores for {len(samples)} prediction-reference pairs")
     predictions = [s["prediction"] for s in samples]
     targets = [normalize_text(s["reference"]) for s in samples]
-    
+
     if not predictions or not targets:
         log.error("No valid prediction-reference pairs found")
         return {

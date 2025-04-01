@@ -1,8 +1,9 @@
 import argparse
+import asyncio
 import json
 
-from flexbench.configs import (BenchmarkConfig,  # Updated import
-                               BenchmarkingConfig)
+from flexbench.configs import BenchmarkConfig  # Updated import
+from flexbench.configs import BenchmarkingConfig
 from flexbench.dataset.base import DatasetConfig
 from flexbench.runners.factory import create_benchmark_runner
 from flexbench.utils import get_logger
@@ -109,7 +110,7 @@ def get_args():
     return parser.parse_args()
 
 
-def main():
+async def async_main():
     args = get_args()
 
     dataset_config = DatasetConfig(
@@ -119,15 +120,15 @@ def main():
         system_prompt_column=args.dataset_system_prompt_column,
         image_column=args.dataset_image_column,
         split=args.dataset_split,
-        accuracy_mode=args.accuracy,  # Add accuracy mode flag
+        accuracy_mode=args.accuracy,
     )
 
-    benchmarking_config = BenchmarkingConfig(  # Renamed from loadgen_config
+    benchmarking_config = BenchmarkingConfig(
         scenario=args.scenario,
         target_qps=args.target_qps,
         accuracy=args.accuracy,
         total_sample_count=args.total_sample_count,
-        batch_size=args.batch_size,  # Added batch_size here
+        batch_size=args.batch_size,
     )
 
     benchmark_config = BenchmarkConfig(
@@ -137,18 +138,22 @@ def main():
         api_server=args.api_server,
         api_token=args.api_token,
         dataset_config=dataset_config,
-        benchmarking_config=benchmarking_config,  # Updated field name
+        benchmarking_config=benchmarking_config,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
     )
 
     runner = create_benchmark_runner(args.backend, benchmark_config)
-    result = runner.run()
+    result = await runner.run()
     results_path = runner.results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
-        json.dump(result, f)  # Remove .__dict__ access
-    log.info(f"\nBenchmark Results:\n{json.dumps(result, indent=2)}")  # Pretty print the dict
+        json.dump(result, f)
+    log.info(f"\nBenchmark Results:\n{json.dumps(result, indent=2)}")
     log.info(f"Results saved to: {results_path}")
+
+
+def main():
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":
