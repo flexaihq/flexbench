@@ -2,8 +2,7 @@ import argparse
 import asyncio
 import json
 
-from flexbench.configs import BenchmarkConfig  # Updated import
-from flexbench.configs import BenchmarkingConfig
+from flexbench.configs import BenchmarkConfig
 from flexbench.dataset.base import DatasetConfig
 from flexbench.runners.factory import create_benchmark_runner
 from flexbench.utils import get_logger
@@ -123,14 +122,6 @@ async def async_main():
         accuracy_mode=args.accuracy,
     )
 
-    benchmarking_config = BenchmarkingConfig(
-        scenario=args.scenario,
-        target_qps=args.target_qps,
-        accuracy=args.accuracy,
-        total_sample_count=args.total_sample_count,
-        batch_size=args.batch_size,
-    )
-
     benchmark_config = BenchmarkConfig(
         task=args.task,
         model_path=args.model_path,
@@ -138,9 +129,12 @@ async def async_main():
         api_server=args.api_server,
         api_token=args.api_token,
         dataset_config=dataset_config,
-        benchmarking_config=benchmarking_config,
+        scenario=args.scenario,
+        target_qps=args.target_qps,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
+        accuracy=args.accuracy,
+        total_sample_count=args.total_sample_count,
     )
 
     runner = create_benchmark_runner(args.backend, benchmark_config)

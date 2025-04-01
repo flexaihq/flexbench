@@ -19,14 +19,13 @@ log = get_logger(__name__)
 
 
 class LoadGenBackend(BaseBackend):
-    """MLPerf LoadGen backend implementation."""
+    """MLPerf LoadGen base backend implementation."""
 
     def __init__(self, config: BenchmarkConfig, results_dir: Path):
         super().__init__(config)
         self.results_dir = results_dir
         self.task_type = config.task
 
-        # Initialize MLPerf QSL once for both scenarios
         self._qsl = lg.ConstructQSL(
             self.total_sample_count,
             self.total_sample_count,
@@ -34,31 +33,39 @@ class LoadGenBackend(BaseBackend):
             self.dataset.UnloadSamplesFromRam,
         )
 
-        # Create appropriate scenario backend
+        # Initialize scenario
         self._scenario = (
-            LoadGenOfflineBackend
-            if config.benchmarking_config.scenario == "Offline"
-            else LoadGenServerBackend
-        )(config=config, parent=self)
+            LoadGenOfflineScenario(parent=self)
+            if config.scenario == "Offline"
+            else LoadGenServerScenario(parent=self)
+        )
+        self._sut = self._scenario._sut
 
     def start(self):
         self._scenario.start()
 
     def stop(self):
         self._scenario.stop()
-        lg.DestroySUT(self._scenario.sut)
+        if self._sut:
+            lg.DestroySUT(self._sut)
         lg.DestroyQSL(self._qsl)
 
     def process_query(self, query: dict) -> dict:
         return self._scenario.process_query(query)
 
-    @property
-    def sut(self):
-        return self._scenario.sut
+    def issue_queries(self, query_samples: list[lg.QuerySample]) -> None:
+        pass
+
+    def flush_queries(self):
+        pass
 
     @property
     def qsl(self):
         return self._qsl
+
+    @property
+    def sut(self):
+        return self._sut
 
     def submit_lg_response(
         self, token_ids: list[int], query_id: int, first_token: bool = False
@@ -83,29 +90,34 @@ class LoadGenBackend(BaseBackend):
         self.submit_lg_response(token_ids, query_id, first_token=is_first_token)
 
 
-class LoadGenOfflineBackend:
-    """LoadGen offline scenario backend."""
+class LoadGenScenarioBase:
+    """Base class for LoadGen scenarios."""
 
-    def __init__(self, config: BenchmarkConfig, parent: LoadGenBackend):
-        self.config = config
+    def __init__(self, parent: LoadGenBackend):
         self.parent = parent
-        self.batch_size = config.batch_size or parent.total_sample_count
-        self.worker_threads: list[threading.Thread] = []
-        self.query_queue = queue.Queue()
-
-        # Initialize MLPerf SUT
         self._sut = lg.ConstructSUT(self.issue_queries, self.flush_queries)
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def issue_queries(self, query_samples: list[lg.QuerySample]) -> None:
+        pass
 
     def flush_queries(self):
         pass
 
-    @property
-    def sut(self):
-        return self._sut
 
-    def process_query(self, query_sample: lg.QuerySample) -> None:
-        """Process a single query sample (required for interface but not used)."""
-        pass  # Offline mode uses batched processing instead
+class LoadGenOfflineScenario(LoadGenScenarioBase):
+    """LoadGen offline scenario implementation."""
+
+    def __init__(self, parent: LoadGenBackend):
+        super().__init__(parent)
+        self.batch_size = parent.config.batch_size or parent.total_sample_count
+        self.worker_threads: list[threading.Thread] = []
+        self.query_queue = queue.Queue()
 
     def start(self) -> None:
         """Start worker threads for offline batch processing."""
@@ -152,24 +164,12 @@ class LoadGenOfflineBackend:
                 self.parent._update_counter()
 
 
-class LoadGenServerBackend:
-    """LoadGen server scenario backend."""
+class LoadGenServerScenario(LoadGenScenarioBase):
+    """LoadGen server scenario implementation."""
 
-    def __init__(self, config: BenchmarkConfig, parent: LoadGenBackend):
-        self.config = config
-        self.parent = parent
-        self.dataset = parent.dataset  # Add dataset access from parent
+    def __init__(self, parent: LoadGenBackend):
+        super().__init__(parent)
         self.first_token_queue = queue.Queue()
-
-        # Initialize MLPerf SUT
-        self._sut = lg.ConstructSUT(self.issue_queries, self.flush_queries)
-
-    def flush_queries(self):
-        pass
-
-    @property
-    def sut(self):
-        return self._sut
 
     def start(self) -> None:
         """Start first token processing thread."""
@@ -193,7 +193,7 @@ class LoadGenServerBackend:
 
     def process_query(self, query_sample: lg.QuerySample) -> None:
         """Process a single query with streaming response."""
-        input_data = self.dataset.get_sample(query_sample.index)
+        input_data = self.parent.dataset.get_sample(query_sample.index)
         response = self.parent._make_api_request(input_data, stream=True)
         text_cache = ""
         first_token_sent = False
@@ -207,9 +207,7 @@ class LoadGenServerBackend:
                 continue
 
             token_data = json.loads(decoded[6:])
-            token_text = self.parent._process_response(
-                token_data, streaming=True
-            )  # Use parent's method
+            token_text = self.parent._process_response(token_data, streaming=True)
 
             if not token_text:
                 continue
@@ -223,7 +221,7 @@ class LoadGenServerBackend:
             text_cache += token_text
 
         self.parent.process_completion(text_cache, query_sample.id)
-        self.parent._update_counter()  # Use parent's counter update
+        self.parent._update_counter()
 
     def process_first_tokens(self) -> None:
         """Process and submit first tokens from streaming responses."""
@@ -232,7 +230,7 @@ class LoadGenServerBackend:
             if item is None:
                 break
             first_token_txt, query_id = item
-            first_token_id = self.tokenizer.encode(
+            first_token_id = self.parent.tokenizer.encode(
                 first_token_txt,
                 add_special_tokens=False,
             )

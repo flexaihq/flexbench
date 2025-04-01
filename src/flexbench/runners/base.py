@@ -47,9 +47,7 @@ class BaseBackend(ABC):
 
         # Common tracking
         self._active = False
-        self.total_sample_count = config.benchmarking_config.total_sample_count or len(
-            self.dataset
-        )
+        self.total_sample_count = config.total_sample_count or len(self.dataset)
         self.sample_counter = 0
         self.sample_counter_lock = threading.Lock()
 
@@ -111,11 +109,7 @@ class BaseBackend(ABC):
             resp = s.post(
                 endpoint, headers=headers, json=payload, verify=False, stream=stream
             )
-            try:
-                resp.raise_for_status()
-            except:
-                log.error(f"API request failed: {resp.text}")
-                raise ValueError(f"API Error: {resp.text}")
+            resp.raise_for_status()
             return resp if stream else resp.json()
 
     def _process_response(self, response: dict | str, streaming: bool = False) -> str:

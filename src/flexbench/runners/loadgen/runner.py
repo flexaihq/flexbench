@@ -1,4 +1,5 @@
 import re
+import typing as tp
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -6,7 +7,7 @@ from pathlib import Path
 import mlperf_loadgen as lg
 
 from flexbench.accuracy_check import run_accuracy_check
-from flexbench.configs import BenchmarkConfig, BenchmarkingConfig
+from flexbench.configs import BenchmarkConfig
 from flexbench.runners.base import BaseRunner
 from flexbench.runners.loadgen.backend import LoadGenBackend
 from flexbench.utils import get_logger
@@ -19,7 +20,7 @@ class LoadgenResult:
     """LoadGen benchmark results."""
 
     scenario: str
-    mode: str  # "PerformanceOnly" or "AccuracyOnly"
+    mode: tp.Literal["PerformanceOnly", "AccuracyOnly"]
     valid: bool
     completed: int
     total_samples: int
@@ -47,14 +48,13 @@ class LoadgenResult:
         if not log_path.exists():
             log.error(f"MLPerf log not found at {log_path}")
             return cls(
-                scenario=config.benchmarking_config.scenario,
+                scenario=config.scenario,
                 mode=mode,
                 valid=False,
                 completed=0,
                 total_samples=0,
             )
 
-        # For accuracy mode, compute metrics using accuracy checker
         if mode == "AccuracyOnly":
             metrics = run_accuracy_check(
                 model_path=config.model_path,
@@ -62,11 +62,11 @@ class LoadgenResult:
                 mlperf_accuracy_file=log_path,
             )
             return cls(
-                scenario=config.benchmarking_config.scenario,
+                scenario=config.scenario,
                 mode=mode,
                 valid=True,
                 completed=metrics.get("gen_num", 0),
-                total_samples=config.benchmarking_config.total_sample_count or 0,
+                total_samples=config.total_sample_count or 0,
                 rouge1=metrics.get("rouge1"),
                 rouge2=metrics.get("rouge2"),
                 rougeL=metrics.get("rougeL"),
@@ -74,7 +74,6 @@ class LoadgenResult:
                 tokens_per_sample=metrics.get("tokens_per_sample"),
             )
 
-        # For performance mode, extract metrics from summary log
         with open(log_path) as f:
             content = f.read()
 
@@ -83,8 +82,8 @@ class LoadgenResult:
             return float(match.group(1)) if match else None
 
         patterns = {
-            "samples_per_second": r"Completed samples per second\s*:\s*([\d.]+)",
-            "tokens_per_second": r"Completed tokens per second\s*:\s*([\d.]+)",
+            "samples_per_second": r"(?:Completed )?[Ss]amples per second\s*:\s*([\d.]+)",
+            "tokens_per_second": r"(?:Completed )?[Tt]okens per second\s*:\s*([\d.]+)",
             "mean_latency_ns": r"Mean latency \(ns\)\s*:\s*([\d.]+)",
             "p50_latency_ns": r"50.00 percentile latency \(ns\)\s*:\s*([\d.]+)",
             "p90_latency_ns": r"90.00 percentile latency \(ns\)\s*:\s*([\d.]+)",
@@ -94,17 +93,17 @@ class LoadgenResult:
         metrics = {k: extract_float(v) for k, v in patterns.items()}
         valid = "Result is : VALID" in content
         completed = (
-            config.benchmarking_config.total_sample_count
+            config.total_sample_count
             if "Early stopping satisfied" in content
             else 0
         )
 
         return cls(
-            scenario=config.benchmarking_config.scenario,
+            scenario=config.scenario,
             mode=mode,
             valid=valid,
             completed=completed,
-            total_samples=config.benchmarking_config.total_sample_count or 0,
+            total_samples=config.total_sample_count or 0,
             **metrics,
         )
 
@@ -125,13 +124,11 @@ class LoadGenRunner(BaseRunner):
             self.backend.stop()
 
     def _run_benchmark(self) -> LoadgenResult:
-        test_settings = self._setup_test_settings(
-            self.config.benchmarking_config
-        )  # Updated from loadgen_config
+        test_settings = self._setup_test_settings(self.config)
         log_settings = self._setup_logging(
             self.results_dir,
-            self.config.benchmarking_config.log_output_to_stdout,  # Updated from loadgen_config
-            self.config.benchmarking_config.enable_trace,  # Updated from loadgen_config
+            self.config.log_output_to_stdout,
+            self.config.enable_trace,
         )
 
         lg.StartTestWithLogSettings(
@@ -157,28 +154,26 @@ class LoadGenRunner(BaseRunner):
         results_dir.mkdir(parents=True, exist_ok=True)
         return results_dir
 
-    @staticmethod
     def _setup_test_settings(
-        benchmarking_config: BenchmarkingConfig,
+        self,
+        config: BenchmarkConfig,
     ) -> lg.TestSettings:
         """Setup MLPerf loadgen test settings."""
         test_settings = lg.TestSettings()
-        test_settings.scenario = getattr(lg.TestScenario, benchmarking_config.scenario)
+        test_settings.scenario = getattr(lg.TestScenario, config.scenario)
         test_settings.FromConfig(
-            benchmarking_config.config_path,
-            benchmarking_config.model_name,
-            benchmarking_config.scenario,
+            config.config_path,
+            config.model_name,
+            config.scenario,
         )
         test_settings.mode = (
-            lg.TestMode.AccuracyOnly
-            if benchmarking_config.accuracy
-            else lg.TestMode.PerformanceOnly
+            lg.TestMode.AccuracyOnly if config.accuracy else lg.TestMode.PerformanceOnly
         )
 
-        if benchmarking_config.scenario == "Offline":
-            test_settings.offline_expected_qps = benchmarking_config.target_qps
-        elif benchmarking_config.scenario == "Server":
-            test_settings.server_target_qps = benchmarking_config.target_qps
+        if config.scenario == "Offline":
+            test_settings.offline_expected_qps = config.target_qps
+        elif config.scenario == "Server":
+            test_settings.server_target_qps = config.target_qps
 
         return test_settings
 

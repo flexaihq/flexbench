@@ -1,3 +1,4 @@
+import typing as tp
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,7 +16,7 @@ class VLLMResult:
     """vLLM benchmark results."""
 
     scenario: str
-    mode: str  # "PerformanceOnly" or "AccuracyOnly"
+    mode: tp.Literal["PerformanceOnly", "AccuracyOnly"]
     valid: bool
     completed: int
     total_samples: int
@@ -37,7 +38,7 @@ class VLLMResult:
         successful = [r for r in outputs if r.success]
         if not successful:
             return cls(
-                scenario=config.benchmarking_config.scenario,
+                scenario=config.scenario,
                 mode="PerformanceOnly",
                 valid=False,
                 completed=0,
@@ -51,12 +52,11 @@ class VLLMResult:
                 p99_latency_ns=0,
             )
 
-        # Calculate metrics
         total_tokens = sum(r.prompt_len + r.output_tokens for r in successful)
         latencies = [r.latency * 1e9 for r in successful]
 
         return cls(
-            scenario=config.benchmarking_config.scenario,
+            scenario=config.scenario,
             mode="PerformanceOnly",
             valid=True,
             completed=len(successful),
