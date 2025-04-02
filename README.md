@@ -215,8 +215,10 @@ nsys stats --force-overwrite=true \
 Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset:
 
 ```sh
-pytest src/flexbench/tests/ -v
+pytest
 ```
+
+To run the tests, first install vLLM as described in the [Server Mode (Streaming)](#1-server-mode-streaming) section.
 
 The tests will automatically:
 
@@ -230,29 +232,3 @@ The test suite covers:
 - LoadGen backend (Server and Offline modes, both performance and accuracy tests)
 
 The tests use minimal samples and a small model for quick validation.
-
-## Configuration Reference
-
-Required arguments:
-
-- `--task`: Task type (`text` or `vision`)
-- `--model-path`: Model name or path
-- `--api-server`: vLLM API server URL
-- `--scenario`: Benchmark scenario (`Offline` or `Server`)
-- `--target-qps`: Target queries per second
-- `--dataset-path`: Dataset path
-- `--dataset-input-column`: Input column name
-
-Optional arguments:
-
-- `--accuracy`: Enable accuracy evaluation
-- `--dataset-output-column`: Reference text column
-- `--dataset-split`: Dataset split name (default: `train`)
-- `--dataset-system-prompt-column`: System prompt column
-- `--dataset-image-column`: Image column (vision tasks)
-- `--tokenizer-path`: Custom tokenizer path
-- `--api-token`: API authentication token
-- `--total-sample-count`: Sample limit
-- `--batch-size`: Batch size (offline mode)
-- `--max-generated-tokens`: Generation limit (default: 1024)
-- `--backend`: Benchmark backend (`loadgen` or `vllm`, default: `loadgen`)
