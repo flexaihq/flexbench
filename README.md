@@ -102,7 +102,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B
 Then run the benchmark:
 
 ```sh
-python main.py \
+python -m flexbench \
     --task text \
     --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --api-server http://localhost:8000 \
@@ -118,7 +118,7 @@ python main.py \
 ### 2. Offline Mode (Batched)
 
 ```sh
-python main.py \
+python -m flexbench \
     --task text \
     --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --api-server http://localhost:8000 \
@@ -133,7 +133,7 @@ python main.py \
 ### 3. Remote Endpoint
 
 ```sh
-python main.py \
+python -m flexbench \
     --task text \
     --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --api-server https://your-endpoint.com \
@@ -157,7 +157,7 @@ FlexBench supports multiple backend implementations:
    - Example:
 
    ```sh
-   python main.py \
+   python -m flexbench \
        --task text \
        --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
        --api-server http://localhost:8000 \
@@ -177,7 +177,7 @@ FlexBench supports multiple backend implementations:
    - Adapted from [vllm/benchmarks](https://github.com/vllm-project/vllm/tree/main/benchmarks)
    - Example:
    ```sh
-   python main.py \
+   python -m flexbench \
        --task text \
        --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
        --api-server http://localhost:8000 \

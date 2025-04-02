@@ -1,4 +1,25 @@
-"""FlexBench pytest suite."""
+"""
+Test cases for FlexBench benchmarking framework.
+
+Usage:
+    python -m pytest
+
+The tests automatically:
+1. Start a vLLM server with the test model
+2. Run all test cases
+3. Shut down the server when done
+
+Example manual test:
+    python -m flexbench \
+        --task text \
+        --model-path HuggingFaceH4/smol_llama_2_135m \
+        --api-server http://localhost:8000 \
+        --scenario Server \
+        --target-qps 1 \
+        --dataset-path ctuning/MLPerf-OpenOrca \
+        --dataset-input-column question \
+        --total-sample-count 10
+"""
 
 import json
 import subprocess
