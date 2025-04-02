@@ -6,8 +6,7 @@ from pathlib import Path
 
 import aiohttp
 
-from flexbench.configs import BenchmarkConfig
-from flexbench.runners.base import BaseBackend
+from flexbench.runners.base import BaseBackend, BenchmarkConfig
 from flexbench.utils import get_logger
 
 
@@ -192,6 +191,10 @@ class VLLMBackend(BaseBackend):
 
                 if not success:
                     log.warning("Request completed but no tokens were generated.")
+                    log.warning(f"Raw content: {raw_content}")
+                    log.warning(f"Response: {resp.status} {resp.reason}")
+                    log.warning(f"Payload: {payload}")
+                    log.warning(f"Headers: {headers}")
 
                 return RequestOutput(
                     success=success,

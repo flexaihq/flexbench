@@ -13,17 +13,20 @@ A flexible benchmarking framework for language and vision models, with support f
 ## Quick Start
 
 1. Install uv (recommended):
+
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 2. Install dependencies and project:
+
 ```sh
 uv sync
 uv pip install -e .
 ```
 
 3. Set up virtual environment:
+
 ```sh
 source .venv/bin/activate
 ```
@@ -31,6 +34,7 @@ source .venv/bin/activate
 ## Model Support
 
 FlexBench works with any HuggingFace model, with specialized chat templates for:
+
 - Llama2 models (`meta-llama/Llama-2-*`)
 - Llama3 models (`meta-llama/Llama-3-*`)
 - DeepSeek models (`deepseek-ai/DeepSeek-*`)
@@ -49,18 +53,23 @@ FlexBench works with any HuggingFace model, with specialized chat templates for:
 ## Dataset Support
 
 ### Text Tasks
+
 FlexBench supports any HuggingFace dataset with configurable column mapping for:
+
 - Input text (`--dataset-input-column`), required
 - Output/reference text (`--dataset-output-column`), for accuracy mode only
 - System prompt (`--dataset-system-prompt-column`), optional
 
 Commonly used datasets:
+
 - `ctuning/MLPerf-OpenOrca`
 - `Open-Orca/OpenOrca`
 - `AI-MO/NuminaMath-TIR`
 
 ### Vision Tasks
+
 Currently supports:
+
 - `philschmid/amazon-product-descriptions-vlm` (Beta)
 
 ## Usage Examples
@@ -69,8 +78,14 @@ Currently supports:
 
 First, install vLLM locally following the [official instructions](https://docs.vllm.ai/en/latest/getting_started/installation.html). Make sure to install using `uv pip` and not regular `pip`.
 
+Or, simply run the command:
+
+```sh
+uv pip install git+https://github.com/vllm-project/vllm@v0.8.2
+```
 
 Then, start the vLLM server:
+
 ```sh
 # Single GPU
 CUDA_VISIBLE_DEVICES=0 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
@@ -85,6 +100,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B
 ```
 
 Then run the benchmark:
+
 ```sh
 python main.py \
     --task text \
@@ -135,9 +151,11 @@ python main.py \
 FlexBench supports multiple backend implementations:
 
 1. **MLPerf LoadGen** (default)
+
    - MLPerf-compliant benchmarking
    - Supports both performance and accuracy modes
    - Example:
+
    ```sh
    python main.py \
        --task text \
@@ -173,6 +191,7 @@ FlexBench supports multiple backend implementations:
 ### Profiling with NVIDIA Nsight
 
 1. Profile the server:
+
 ```sh
 nsys profile --force-overwrite=true \
     --gpu-metrics-devices=cuda-visible \
@@ -183,6 +202,7 @@ nsys profile --force-overwrite=true \
 ```
 
 2. Generate stats:
+
 ```sh
 nsys stats --force-overwrite=true \
     --format=table \
@@ -190,9 +210,31 @@ nsys stats --force-overwrite=true \
     ./results/nsys_profiling.nsys-rep
 ```
 
+## Running Tests
+
+Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset:
+
+```sh
+pytest src/flexbench/tests/ -v
+```
+
+The tests will automatically:
+
+1. Start a vLLM server with the test model
+2. Run all test cases
+3. Shut down the server when done
+
+The test suite covers:
+
+- vLLM backend (Server and Offline modes)
+- LoadGen backend (Server and Offline modes, both performance and accuracy tests)
+
+The tests use minimal samples and a small model for quick validation.
+
 ## Configuration Reference
 
 Required arguments:
+
 - `--task`: Task type (`text` or `vision`)
 - `--model-path`: Model name or path
 - `--api-server`: vLLM API server URL
@@ -202,6 +244,7 @@ Required arguments:
 - `--dataset-input-column`: Input column name
 
 Optional arguments:
+
 - `--accuracy`: Enable accuracy evaluation
 - `--dataset-output-column`: Reference text column
 - `--dataset-split`: Dataset split name (default: `train`)

@@ -1,5 +1,4 @@
-from flexbench.configs import BenchmarkConfig
-from flexbench.runners.base import BaseRunner
+from flexbench.runners.base import BaseRunner, BenchmarkConfig
 from flexbench.runners.loadgen.runner import LoadGenRunner
 from flexbench.runners.vllm.runner import VLLMRunner
 

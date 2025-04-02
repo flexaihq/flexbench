@@ -40,7 +40,7 @@ MODEL_CONFIGS = {
             """
         ),
     },
-    "smollm": {  # Added SmolLM support
+    "smollm": {
         "pattern": "smollm",
         "template": textwrap.dedent(
             """

@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import json
 
-from flexbench.configs import BenchmarkConfig
 from flexbench.dataset.base import DatasetConfig
+from flexbench.runners.base import BenchmarkConfig
 from flexbench.runners.factory import create_benchmark_runner
 from flexbench.utils import get_logger
 
@@ -109,8 +109,9 @@ def get_args():
     return parser.parse_args()
 
 
-async def async_main():
+async def async_main() -> dict:
     args = get_args()
+    log.info(f"Parsed arguments: {args}")
 
     dataset_config = DatasetConfig(
         path=args.dataset_path,
@@ -139,15 +140,20 @@ async def async_main():
 
     runner = create_benchmark_runner(args.backend, benchmark_config)
     result = await runner.run()
+
+    # Save results to file
     results_path = runner.results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
         json.dump(result, f)
-    log.info(f"\nBenchmark Results:\n{json.dumps(result, indent=2)}")
+
+    log.info("Benchmark run completed")
     log.info(f"Results saved to: {results_path}")
+
+    return result
 
 
 def main():
-    asyncio.run(async_main())
+    return asyncio.run(async_main())
 
 
 if __name__ == "__main__":

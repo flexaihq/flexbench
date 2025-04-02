@@ -9,8 +9,7 @@ import mlperf_loadgen as lg
 import numpy as np
 import urllib3
 
-from flexbench.configs import BenchmarkConfig
-from flexbench.runners.base import BaseBackend
+from flexbench.runners.base import BaseBackend, BenchmarkConfig
 from flexbench.utils import get_logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

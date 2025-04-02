@@ -21,6 +21,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
 ]
 
 # [project.optional-dependencies]
@@ -32,3 +34,7 @@ dev = [
 
 # [tool.uv]
 # no-build-isolation-package = ["flash-attn", "xformers"]
+
+# [build-system]
+# requires = ['setuptools']
+# build-backend = 'setuptools.build_meta'

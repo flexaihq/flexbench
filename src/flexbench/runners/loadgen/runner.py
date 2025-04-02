@@ -7,8 +7,7 @@ from pathlib import Path
 import mlperf_loadgen as lg
 
 from flexbench.accuracy_check import run_accuracy_check
-from flexbench.configs import BenchmarkConfig
-from flexbench.runners.base import BaseRunner
+from flexbench.runners.base import BaseRunner, BenchmarkConfig
 from flexbench.runners.loadgen.backend import LoadGenBackend
 from flexbench.utils import get_logger
 
@@ -93,9 +92,7 @@ class LoadgenResult:
         metrics = {k: extract_float(v) for k, v in patterns.items()}
         valid = "Result is : VALID" in content
         completed = (
-            config.total_sample_count
-            if "Early stopping satisfied" in content
-            else 0
+            config.total_sample_count if "Early stopping satisfied" in content else 0
         )
 
         return cls(
