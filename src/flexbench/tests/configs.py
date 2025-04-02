@@ -1,4 +1,3 @@
-import asyncio
 import os
 import subprocess
 import time
@@ -49,12 +48,11 @@ def log_server_output(process: subprocess.Popen):
         print(f"[vLLM Server] {line.strip()}")
 
 
-async def start_vllm_server():
+def start_vllm_server():
     """Start vLLM server with test model."""
     # Change to flexbench root dir
     original_dir = os.getcwd()
     os.chdir(Path(__file__).parent.parent)
-    print(f"Changed directory to {os.getcwd()}")
 
     process = subprocess.Popen(
         [
@@ -66,32 +64,32 @@ async def start_vllm_server():
             "--disable-log-requests",
             "--port",
             "1234",
+            "--enforce-eager",  # fast startup
         ],
-        stdout=subprocess.PIPE,  # Capture but forward output
+        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Merge stderr into stdout
+        text=True,  # Use text mode for string output
+        bufsize=1,  # Line buffering
     )
 
-    # Forward server output in real-time while we wait for startup
+    # Wait for server to start
     start_time = time.time()
     while time.time() - start_time < 300:
-        line = await asyncio.get_event_loop().run_in_executor(
-            None, process.stdout.readline
-        )
+        line = process.stdout.readline()
         if line:
-            print("[vLLM Server]", line.decode().strip())
+            print("[vLLM Server]", line.strip())
         if process.poll() is not None:
             raise RuntimeError("vLLM server failed to start")
-        if b"Application startup complete" in line:
+        if "Application startup complete" in line:
             break
-        await asyncio.sleep(0.01)
+        time.sleep(0.1)
 
-    # Keep process in root dir for loadgen outputs
     return process, original_dir
 
 
-async def stop_vllm_server(server_info):
+def stop_vllm_server(server_info):
     """Stop vLLM server and restore directory."""
     process, original_dir = server_info
     process.terminate()
-    await asyncio.get_event_loop().run_in_executor(None, process.wait)
+    process.wait()
     os.chdir(original_dir)

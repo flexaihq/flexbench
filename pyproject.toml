@@ -10,7 +10,6 @@ dependencies = [
     "evaluate>=0.4.3",
     "mlcommons-loadgen>=5.0.15",
     "nltk>=3.9.1",
-    "numpy>=2.2.4",
     "pandas>=2.2.3",
     "pillow>=11.1.0",
     "rouge-score>=0.1.2",
@@ -22,7 +21,6 @@ dependencies = [
 dev = [
     "ipykernel>=6.29.5",
     "pytest>=8.3.5",
-    "pytest-asyncio>=0.26.0",
 ]
 
 # [project.optional-dependencies]

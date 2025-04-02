@@ -1,13 +1,12 @@
 """FlexBench pytest suite."""
 
 import json
+import subprocess
 import sys
 
 import pytest
-import pytest_asyncio
 import requests
 
-from flexbench.main import async_main
 from flexbench.tests.configs import (
     BASE_CONFIG,
     TEST_CASES,
@@ -16,11 +15,12 @@ from flexbench.tests.configs import (
 )
 
 
-async def run_benchmark_cli(config):
-    """Run benchmark through CLI."""
-    old_args = sys.argv[:]
-
-    args = [
+def run_benchmark_subprocess(config: dict) -> dict:
+    """Run benchmark through subprocess and return parsed results."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "flexbench.main",
         "--task",
         config["task"],
         "--model-path",
@@ -40,43 +40,73 @@ async def run_benchmark_cli(config):
     ]
 
     if config["dataset_output_column"]:
-        args.extend(["--dataset-output-column", config["dataset_output_column"]])
+        cmd.extend(["--dataset-output-column", config["dataset_output_column"]])
     if config.get("accuracy"):
-        args.append("--accuracy")
+        cmd.append("--accuracy")
     if config.get("batch_size"):
-        args.extend(["--batch-size", str(config["batch_size"])])
+        cmd.extend(["--batch-size", str(config["batch_size"])])
     if config.get("dataset_system_prompt_column"):
-        args.extend(
+        cmd.extend(
             ["--dataset-system-prompt-column", config["dataset_system_prompt_column"]]
         )
     if config.get("max_generated_tokens"):
-        args.extend(["--max-generated-tokens", str(config["max_generated_tokens"])])
+        cmd.extend(["--max-generated-tokens", str(config["max_generated_tokens"])])
     if config.get("total_sample_count"):
-        args.extend(["--total-sample-count", str(config["total_sample_count"])])
+        cmd.extend(["--total-sample-count", str(config["total_sample_count"])])
 
-    sys.argv[1:] = args
-    try:
-        return await async_main()
-    finally:
-        sys.argv = old_args
+    # Print reproducible command
+    print("\nTo reproduce this test, run:")
+    print(" ".join(cmd))
+
+    # Run benchmark
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # Merge stderr into stdout
+        text=True,  # Use text mode for string output
+        bufsize=1,  # Line buffering
+    )
+
+    # Stream all output in real-time
+    results_file = None
+    while True:
+        line = process.stdout.readline()
+        if line:
+            line = line.strip()
+            print("[FlexBench]", line)
+            if "Results saved to:" in line:
+                results_file = line.split(": ")[-1]
+
+        if process.poll() is not None:
+            # Read any remaining output
+            for line in process.stdout:
+                line = line.strip()
+                print("[FlexBench]", line)
+                if "Results saved to:" in line:
+                    results_file = line.split(": ")[-1]
+            break
+
+    if process.returncode != 0:
+        print("\nBenchmark failed with non-zero exit code")
+        return None
+
+    if not results_file:
+        print("\nCouldn't find results file in output")
+        return None
+
+    with open(results_file) as f:
+        return json.load(f)
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def vllm_server():
+@pytest.fixture(scope="session", autouse=True)
+def vllm_server():
     """Start vLLM server for all tests."""
-    server_info = await start_vllm_server()
+    server_info = start_vllm_server()
     yield server_info
-    await stop_vllm_server(server_info)
+    stop_vllm_server(server_info)
 
 
-def pytest_configure(config):
-    """Configure pytest."""
-    config.option.capture = "no"
-
-
-@pytest.mark.asyncio
-@pytest.mark.first
-async def test_vllm_server_health():
+def test_vllm_server_health():
     """Verify vLLM server is healthy before running benchmarks."""
     server_url = BASE_CONFIG["api_server"]
     try:
@@ -89,13 +119,12 @@ async def test_vllm_server_health():
         pytest.fail(f"Failed to connect to vLLM server at {server_url}: {e}")
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "backend,scenario,accuracy",
     TEST_CASES.values(),
     ids=TEST_CASES.keys(),
 )
-async def test_benchmark(backend, scenario, accuracy, request):
+def test_benchmark(backend, scenario, accuracy, request):
     """Test benchmark scenarios."""
     test_case_key = request.node.name.split("[")[-1].split("]")[0]
     print(
@@ -119,7 +148,7 @@ async def test_benchmark(backend, scenario, accuracy, request):
         config["target_qps"] = float("inf")
 
     try:
-        result = await run_benchmark_cli(config)
+        result = run_benchmark_subprocess(config)
 
         assert result is not None, "Benchmark result is None"
         assert isinstance(result, dict), "Result should be a dictionary"
