@@ -17,22 +17,10 @@ dependencies = [
     "transformers>=4.50.3",
 ]
 
-[dependency-groups]
-dev = [
-    "ipykernel>=6.29.5",
-    "pytest>=8.3.5",
+[project.optional-dependencies]
+local = [
+    "vllm>=0.8.2",
 ]
 
-# [project.optional-dependencies]
-# local = [
-#     "flash-attn",
-#     "flashinfer-python",
-#     "vllm",
-# ]
-
-# [tool.uv]
-# no-build-isolation-package = ["flash-attn", "xformers"]
-
-# [build-system]
-# requires = ['setuptools']
-# build-backend = 'setuptools.build_meta'
+[dependency-groups]
+dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]

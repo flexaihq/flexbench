@@ -76,15 +76,7 @@ Currently supports:
 
 ### 1. Server Mode (Streaming)
 
-First, install vLLM locally following the [official instructions](https://docs.vllm.ai/en/latest/getting_started/installation.html). Make sure to install using `uv pip` and not regular `pip`.
-
-Or, simply run the command:
-
-```sh
-uv pip install git+https://github.com/vllm-project/vllm@v0.8.2
-```
-
-Then, start the vLLM server:
+First, start the vLLM server:
 
 ```sh
 # Single GPU
@@ -212,13 +204,13 @@ nsys stats --force-overwrite=true \
 
 ## Running Tests
 
-Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset:
+Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset.
+
+Run them with:
 
 ```sh
-pytest
+pytest . -v -s
 ```
-
-To run the tests, first install vLLM as described in the [Server Mode (Streaming)](#1-server-mode-streaming) section.
 
 The tests will automatically:
 

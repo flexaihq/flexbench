@@ -20,12 +20,6 @@ def start_server() -> tuple[subprocess.Popen, str]:
     original_dir = os.getcwd()
     os.chdir(Path(__file__).parent.parent)
 
-    # Set environment variables for network interface
-    env = os.environ.copy()
-    env["GLOO_SOCKET_IFNAME"] = "lo0"  # Use loopback interface on macOS
-    if "darwin" not in sys.platform.lower():
-        env["GLOO_SOCKET_IFNAME"] = "lo"  # Use loopback interface on Linux
-
     process = subprocess.Popen(
         [
             "uv",
@@ -36,23 +30,31 @@ def start_server() -> tuple[subprocess.Popen, str]:
             "--disable-log-requests",
             "--port",
             "1234",
-            "--enforce-eager",  # fast startup
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Merge stderr into stdout
         text=True,  # Use text mode for string output
         bufsize=1,  # Line buffering
-        env=env,  # Add environment variables
     )
 
     # Wait for server to start
     start_time = time.time()
+    output_lines = []
     while time.time() - start_time < 300:
         line = process.stdout.readline().strip()
         if line:
             print("[vLLM Server]", line)
+            output_lines.append(line)
         if process.poll() is not None:
-            raise RuntimeError("vLLM server failed to start")
+            # Collect any remaining output
+            remaining = process.stdout.read()
+            if remaining:
+                print("[vLLM Server]", remaining)
+                output_lines.append(remaining)
+            error_msg = "\n".join(output_lines)
+            raise RuntimeError(
+                f"vLLM server failed to start. Server output:\n{error_msg}"
+            )
         if "Application startup complete" in line:
             break
         time.sleep(0.1)
