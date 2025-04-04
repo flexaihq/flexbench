@@ -3,27 +3,24 @@ name = "FlexBench"
 version = "0.1.0"
 description = "FlexAI Universal Benchmarking"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-    "accelerate>=1.4.0",
-    "datasets>=3.2.0",
+    "anyio>=4.9.0",
+    "datasets>=3.5.0",
     "evaluate>=0.4.3",
-    "flash-attn>=2.7.4.post1",
-    "flashinfer-python>=0.2.3",
     "mlcommons-loadgen>=5.0.15",
     "nltk>=3.9.1",
     "pandas>=2.2.3",
+    "pillow>=11.1.0",
     "rouge-score>=0.1.2",
     "sentencepiece>=0.2.0",
-    "torch>=2.5.1",
-    "transformers>=4.48.3",
-    "vllm>=0.7.2",
+    "transformers>=4.50.3",
+]
+
+[project.optional-dependencies]
+local = [
+    "vllm>=0.8.2",
 ]
 
 [dependency-groups]
-dev = [
-    "ipykernel>=6.29.5",
-]
-
-[tool.uv]
-no-build-isolation-package = ["flash-attn"]
+dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]

@@ -2,3 +2,5 @@
 .venv
 uv.lock
 src/flexbench/results
+*.egg-info
+build

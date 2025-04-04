@@ -1,8 +1,18 @@
 # FlexBench
 
-## Setup
+A flexible benchmarking framework for language and vision models, with support for both MLPerf loadgen and vLLM backends.
 
-1. Install uv (optional):
+## Features
+
+- 🚀 Support for both Server (streaming) and Offline (batched) inference modes
+- 🔄 Compatible with any HuggingFace model and dataset
+- 🎯 MLPerf-compliant benchmarking with loadgen
+- 🔍 Performance and accuracy evaluation
+- 📊 Detailed metrics including TTFT, throughput, and latency percentiles
+
+## Quick Start
+
+1. Install uv (recommended):
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -15,42 +25,42 @@ uv sync
 uv pip install -e .
 ```
 
-3. Activate virtual environment:
+3. Set up virtual environment:
 
 ```sh
 source .venv/bin/activate
 ```
 
-## Supported Models
+## Model Support
 
-Any model from HuggingFace should be supported. Though, specific chat templates are only applied to Llama2 and Llama3 models. Benchmarks were tested on:
+FlexBench works with any HuggingFace model, with specialized chat templates for:
 
-- DeepSeek-R1 submodels:
-  - Llama distill: `deepseek-ai/DeepSeek-R1-Distill-Llama-70B`, `deepseek-ai/DeepSeek-R1-Distill-Llama-70B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`, `deepseek-ai/DeepSeek-R1-Distill-Llama-8B`
-  - Qwen distill: `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
-- Llama2:
-  - Official: `meta-llama/Llama-2-70b-chat-hf`
-- Llama3:
-  - Official: `meta-llama/Llama-3.1-8B-Instruct`
-  - NeuralMagic quantized: `nm-testing/Llama-3.3-70B-Instruct-FP8-dynamic`
+- Llama2 models (`meta-llama/Llama-2-*`)
+- Llama3 models (`meta-llama/Llama-3-*`)
+- DeepSeek models (`deepseek-ai/DeepSeek-*`)
 
-Example model configuration:
+### Tested Models
 
-```sh
-export MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"  # or local pickle
-```
+- **DeepSeek-R1 Series**
+  - Large: `deepseek-ai/DeepSeek-R1-Distill-Llama-70B`
+  - Medium: `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`
+  - Small: `deepseek-ai/DeepSeek-R1-Distill-Llama-8B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
+- **Llama Official**
+  - Llama2: `meta-llama/Llama-2-70b-chat-hf`
+  - Llama3: `meta-llama/Llama-3.1-8B-Instruct`
+  - Quantized: `nm-testing/Llama-3.3-70B-Instruct-FP8-dynamic`
 
-## Supported Datasets
+## Dataset Support
 
 ### Text Tasks
 
-Any dataset from HuggingFace should be supported, as long as you specify the correct column names for:
+FlexBench supports any HuggingFace dataset with configurable column mapping for:
 
-- Input text (`--dataset-input-column`)
-- Output/reference text (`--dataset-output-column`)
-- System prompt (optional, `--dataset-system-prompt-column`)
+- Input text (`--dataset-input-column`), required
+- Output/reference text (`--dataset-output-column`), for accuracy mode only
+- System prompt (`--dataset-system-prompt-column`), optional
 
-Common datasets used for benchmarking:
+Commonly used datasets:
 
 - `ctuning/MLPerf-OpenOrca`
 - `Open-Orca/OpenOrca`
@@ -58,54 +68,33 @@ Common datasets used for benchmarking:
 
 ### Vision Tasks
 
-Currently only supports the `philschmid/amazon-product-descriptions-vlm` dataset (Work in Progress).
-Support for additional vision datasets is planned.
+Currently supports:
 
-Example dataset configuration:
+- `philschmid/amazon-product-descriptions-vlm` (Beta)
 
-```sh
-export DATASET_PATH="ctuning/MLPerf-OpenOrca"  # or local pickle
-```
+## Usage Examples
 
-## Running Benchmarks
+### 1. Server Mode (Streaming)
 
-### 1. Start Model Server (Terminal 1)
-
-Single GPU:
+First, start the vLLM server:
 
 ```sh
-CUDA_VISIBLE_DEVICES=0 vllm serve $MODEL_PATH \
+# Single GPU
+CUDA_VISIBLE_DEVICES=0 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --disable-log-requests \
     --max-model-len=2048
-```
 
-Multi-GPU:
-
-```sh
-CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve $MODEL_PATH \
+# Multi-GPU
+CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --disable-log-requests \
     --max-model-len=2048 \
     --tensor-parallel-size 4
 ```
 
-Notes:
-
-- use `--port` arg to change from default (`8000`)
-- use `--download-dir` argument to specify vLLM model download directory
-- use `--speculative-model` and `--num-speculative-tokens` args to use speculative decoding (if supported by model)
-
-### 2. Run MLPerf Loadgen (Terminal 2)
-
-IMPORTANT: for loadgen to work properly, you must be in the `src/flexbench/` folder:
+Then run the benchmark:
 
 ```sh
-cd src/flexbench/
-```
-
-Wait for the model server to start, then in a new terminal:
-
-```sh
-python main.py \
+python -m flexbench \
     --task text \
     --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --api-server http://localhost:8000 \
@@ -115,40 +104,85 @@ python main.py \
     --dataset-input-column question \
     --dataset-output-column response \
     --dataset-system-prompt-column system_prompt \
-    --total-sample-count 24576 \
-    --accuracy
+    --total-sample-count 200
 ```
 
-Available arguments:
+### 2. Offline Mode (Batched)
 
-Required arguments:
+```sh
+python -m flexbench \
+    --task text \
+    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+    --api-server http://localhost:8000 \
+    --scenario Offline \
+    --batch-size 32 \
+    --target-qps inf \
+    --dataset-path ctuning/MLPerf-OpenOrca \
+    --dataset-input-column question \
+    --total-sample-count 200
+```
 
-- `--task`: Task type (`text` or `vision`)
-- `--model-path`: Model name on HuggingFace or local path
-- `--api-server`: vLLM API server URL (default: `http://localhost:8000`)
-- `--scenario`: MLPerf scenario (`Offline` or `Server`)
-- `--target-qps`: Target queries per second
-- `--dataset-path`: Dataset path on HuggingFace or local pickle file
-- `--dataset-input-column`: Input text column name in dataset
+### 3. Remote Endpoint
 
-Optional arguments:
+```sh
+python -m flexbench \
+    --task text \
+    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+    --api-server https://your-endpoint.com \
+    --api-token your_token \
+    --scenario Server \
+    --target-qps 10 \
+    --dataset-path ctuning/MLPerf-OpenOrca \
+    --dataset-input-column question
+```
 
-- `--accuracy`: Run accuracy evaluation (default: performance mode)  
-- `--dataset-output-column`: Reference text column name (required for accuracy mode)
-- `--dataset-split`: Dataset split to use (default: `train`)
-- `--dataset-system-prompt-column`: System prompt column name
-- `--dataset-image-column`: Image column name (required for vision tasks)
-- `--tokenizer-path`: Custom tokenizer path if different from model
-- `--api-token`: API authentication token
-- `--total-sample-count`: Number of samples to process
-- `--batch-size`: Batch size for offline scenario
-- `--max-generated-tokens`: Max tokens to generate (default: 1024)
+## Advanced Usage
 
-## Profiling
+### Benchmark Backends
 
-To profile the benchmarks:
+FlexBench supports multiple backend implementations:
 
-1. Start the model server with NVIDIA Nsight profiling:
+1. **MLPerf LoadGen** (default)
+
+   - MLPerf-compliant benchmarking
+   - Supports both performance and accuracy modes
+   - Example:
+
+   ```sh
+   python -m flexbench \
+       --task text \
+       --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+       --api-server http://localhost:8000 \
+       --scenario Server \
+       --target-qps 10 \
+       --dataset-path ctuning/MLPerf-OpenOrca \
+       --dataset-input-column question \
+       --dataset-output-column response \
+       --dataset-system-prompt-column system_prompt \
+       --total-sample-count 24576 \
+       --accuracy
+   ```
+
+2. **vLLM Direct**
+   - Native vLLM streaming support
+   - Simpler implementation without MLPerf overhead
+   - Adapted from [vllm/benchmarks](https://github.com/vllm-project/vllm/tree/main/benchmarks)
+   - Example:
+   ```sh
+   python -m flexbench \
+       --task text \
+       --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+       --api-server http://localhost:8000 \
+       --scenario Server \
+       --target-qps 10 \
+       --dataset-path ctuning/MLPerf-OpenOrca \
+       --dataset-input-column question \
+       --backend vllm
+   ```
+
+### Profiling with NVIDIA Nsight
+
+1. Profile the server:
 
 ```sh
 nsys profile --force-overwrite=true \
@@ -159,11 +193,7 @@ nsys profile --force-overwrite=true \
     --max-model-len=2048
 ```
 
-2. Run your benchmark normally
-
-3. Stop the server with Ctrl+C when done
-
-4. Generate profiling stats:
+2. Generate stats:
 
 ```sh
 nsys stats --force-overwrite=true \
@@ -171,3 +201,26 @@ nsys stats --force-overwrite=true \
     --output=./results/nsys_profiling \
     ./results/nsys_profiling.nsys-rep
 ```
+
+## Running Tests
+
+Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset.
+
+Run them with:
+
+```sh
+pytest . -v -s
+```
+
+The tests will automatically:
+
+1. Start a vLLM server with the test model
+2. Run all test cases
+3. Shut down the server when done
+
+The test suite covers:
+
+- vLLM backend (Server and Offline modes)
+- LoadGen backend (Server and Offline modes, both performance and accuracy tests)
+
+The tests use minimal samples and a small model for quick validation.

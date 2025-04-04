@@ -106,26 +106,40 @@ class MLPerfDataset(ABC):
     def get_references(self) -> ReferenceData:
         """Get raw reference data for accuracy evaluation."""
         if not self.config.accuracy_mode:
+            log.debug("Accuracy mode not enabled in dataset config")
             return ReferenceData([], [], [])
 
-        if not self.raw_samples or not self.config.output_column:
-            log.warning("No samples or output column found for reference data")
+        if not self.raw_samples:
+            log.error("No raw samples found in dataset")
             return ReferenceData([], [], [])
 
-        return ReferenceData(
-            references=[
+        if not self.config.output_column:
+            log.error(
+                f"Output column '{self.config.output_column}' not found in dataset"
+            )
+            return ReferenceData([], [], [])
+
+        log.debug(f"Processing {len(self.raw_samples)} raw samples for references")
+        try:
+            references = [
                 sample[self.config.output_column] for sample in self.raw_samples
-            ],
-            inputs=[sample[self.config.input_column] for sample in self.raw_samples],
-            system_prompts=[
+            ]
+            inputs = [sample[self.config.input_column] for sample in self.raw_samples]
+            system_prompts = [
                 (
                     sample.get(self.config.system_prompt_column)
                     if self.config.system_prompt_column
                     else None
                 )
                 for sample in self.raw_samples
-            ],
-        )
+            ]
+            log.debug(f"Created reference data with {len(references)} entries")
+            return ReferenceData(references, inputs, system_prompts)
+        except KeyError as e:
+            log.error(
+                f"Column access error: {e}. Available columns: {list(self.raw_samples[0].keys()) if self.raw_samples else 'no samples'}"
+            )
+            return ReferenceData([], [], [])
 
     def LoadSamplesToRam(self, sample_list: list) -> None:
         """MLPerf LoadGen callback - not used but required."""

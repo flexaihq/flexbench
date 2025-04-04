@@ -40,6 +40,13 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     """Compute ROUGE scores and token statistics."""
     metric = evaluate.load("rouge")
 
+    log.debug(
+        f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references"
+    )
+    if not preds or not refs:
+        log.warning(f"Empty predictions ({len(preds)}) or references ({len(refs)})")
+        return {}, 0
+
     n_workers = cpu_count()
     chunk_size = len(preds) // n_workers + 1
     chunks = [
@@ -49,6 +56,10 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
 
     with Pool() as pool:
         results_list = pool.map(compute_rouge_chunk, chunks)
+
+    if not results_list:
+        log.warning("No ROUGE results computed")
+        return {}, 0
 
     scores = {k: [] for k in results_list[0].keys()}
     for result in results_list:
@@ -60,7 +71,7 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
 
 def get_accuracy_paths(output_path: str | Path) -> tuple[Path, Path]:
     """Create and return accuracy-related paths."""
-    output_path = Path(output_path)
+    output_path = Path(output_path) / "accuracy"
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path / "accuracy.txt", output_path / "accuracy_details.json"
 
@@ -96,6 +107,9 @@ def run_accuracy_check(
 
     reference_data = dataset.get_references()
     log.info(f"Loaded {len(reference_data.references)} references")
+    if not reference_data.references:
+        log.error("No references found in dataset. Check dataset configuration.")
+        return {}
 
     nltk.download("punkt", quiet=True)
     nltk.download("punkt_tab", quiet=True)
@@ -138,6 +152,7 @@ def run_accuracy_check(
     )
     predictions_decoded = tokenizer.batch_decode(tokens_list, skip_special_tokens=True)
 
+    log.debug(f"Processing {len(predictions_decoded)} decoded predictions")
     samples = [
         {
             "system_prompt": reference_data.system_prompts[idx],
@@ -147,10 +162,22 @@ def run_accuracy_check(
         }
         for idx, pred_text in zip(valid_indices, predictions_decoded)
     ]
+    log.debug(f"Created {len(samples)} sample pairs")
 
-    log.info(f"Computing ROUGE scores for {len(samples)} predictions")
+    log.info(f"Computing ROUGE scores for {len(samples)} prediction-reference pairs")
     predictions = [s["prediction"] for s in samples]
     targets = [normalize_text(s["reference"]) for s in samples]
+
+    if not predictions or not targets:
+        log.error("No valid prediction-reference pairs found")
+        return {
+            "error": "No valid samples",
+            "gen_len": 0,
+            "gen_num": len(samples),
+            "gen_tok_len": gen_tok_len,
+            "tokens_per_sample": 0,
+        }
+
     scores, total_len = compute_rouge_scores(predictions, targets)
 
     metrics = {

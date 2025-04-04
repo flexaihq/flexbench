@@ -1,9 +1,10 @@
 import argparse
+import asyncio
 import json
 
-from flexbench.benchmark_runner import BenchmarkRunner
-from flexbench.configs import BenchmarkConfig, LoadgenConfig
 from flexbench.dataset.base import DatasetConfig
+from flexbench.runners.base import BenchmarkConfig
+from flexbench.runners.factory import create_benchmark_runner
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
@@ -50,6 +51,12 @@ def get_args():
         "--dataset-input-column",
         required=True,
         help="Input text column name in dataset",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["loadgen", "vllm"],
+        default="loadgen",
+        help="Benchmark backend (default: loadgen)",
     )
 
     # Optional arguments
@@ -102,8 +109,9 @@ def get_args():
     return parser.parse_args()
 
 
-def main():
+async def async_main() -> dict:
     args = get_args()
+    log.info(f"Parsed arguments: {args}")
 
     dataset_config = DatasetConfig(
         path=args.dataset_path,
@@ -112,13 +120,7 @@ def main():
         system_prompt_column=args.dataset_system_prompt_column,
         image_column=args.dataset_image_column,
         split=args.dataset_split,
-    )
-
-    loadgen_config = LoadgenConfig(
-        scenario=args.scenario,
-        target_qps=args.target_qps,
-        accuracy=args.accuracy,
-        total_sample_count=args.total_sample_count,
+        accuracy_mode=args.accuracy,
     )
 
     benchmark_config = BenchmarkConfig(
@@ -128,18 +130,30 @@ def main():
         api_server=args.api_server,
         api_token=args.api_token,
         dataset_config=dataset_config,
-        loadgen_config=loadgen_config,
+        scenario=args.scenario,
+        target_qps=args.target_qps,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
+        accuracy=args.accuracy,
+        total_sample_count=args.total_sample_count,
     )
 
-    runner = BenchmarkRunner(benchmark_config)
-    result = runner.run()
+    runner = create_benchmark_runner(args.backend, benchmark_config)
+    result = await runner.run()
+
+    # Save results to file
     results_path = runner.results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
-        json.dump(result.__dict__, f)
-    log.info(f"\nBenchmark Results:\n{result}")
+        json.dump(result, f)
+
+    log.info("Benchmark run completed")
     log.info(f"Results saved to: {results_path}")
+
+    return result
+
+
+def main():
+    return asyncio.run(async_main())
 
 
 if __name__ == "__main__":

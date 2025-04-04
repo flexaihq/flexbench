@@ -1,0 +1,47 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-12 g++-12 libnuma-dev
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 10 --slave /usr/bin/g++ g++ /usr/bin/g++-12
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          uv pip install "cmake>=3.26" wheel packaging ninja "setuptools-scm>=8" numpy
+          uv pip install datasets
+
+      - name: Build vLLM CPU
+        run: |
+          git clone --depth 1 --branch v0.8.2 --single-branch https://github.com/vllm-project/vllm.git
+          cd vllm
+          uv pip install -r requirements/common.txt
+          uv pip install -r requirements/cpu.txt --index-url https://download.pytorch.org/whl/cpu
+          VLLM_TARGET_DEVICE=cpu python setup.py install
+
+      - name: Install project
+        run: uv pip install -e .
+
+      - name: Run tests
+        run: |
+          uv pip install pytest
+          pytest -v -s
