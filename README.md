@@ -224,3 +224,20 @@ The test suite covers:
 - LoadGen backend (Server and Offline modes, both performance and accuracy tests)
 
 The tests use minimal samples and a small model for quick validation.
+
+## Next steps
+
+- Push results to [FlexBoard](https://github.com/flexaihq/flexboard).
+- Collect and record all relevant information about hardware, software, model, dataset, and benchmarking results for further data analytics and predictive modeling.
+- Compare results with existing MLPerf data.
+- Add telemetry with nsys and sampling using hardware counters.
+- Build predictive models to suggest the most optimal hardware for running a given model, and integrate them with FCS.
+
+## Project page
+
+* https://www.notion.so/flexaihq/FCS-Labs-2025-14aec14ca14580f793d1d82ee7c409fc?pvs=4
+* https://www.notion.so/flexaihq/FlexBoard-181ec14ca14580168baed2d601eedb14?pvs=4
+
+## Authors
+
+Daniel Altunay and Grigori Fursin (FCS Labs)
