@@ -23,6 +23,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```sh
 uv sync
 uv pip install -e .
+# Install vLLM
+uv pip install -e .[local]
 ```
 
 3. Set up virtual environment:
