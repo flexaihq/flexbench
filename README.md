@@ -12,22 +12,30 @@ A flexible benchmarking framework for language and vision models, with support f
 
 ## Quick Start
 
+### Prerequisites
+
 1. Install uv (recommended):
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install dependencies and project:
+### Option 1: Remote Endpoint
+
+If you're using a remote API endpoint, you only need the client:
 
 ```sh
 uv sync
 uv pip install -e .
 ```
 
-3. Set up virtual environment:
+### Option 2: Local Deployment
+
+If you want to run the model locally with vLLM:
 
 ```sh
+uv sync
+uv pip install -e ".[local]"
 source .venv/bin/activate
 ```
 
@@ -168,6 +176,7 @@ FlexBench supports multiple backend implementations:
    - Simpler implementation without MLPerf overhead
    - Adapted from [vllm/benchmarks](https://github.com/vllm-project/vllm/tree/main/benchmarks)
    - Example:
+
    ```sh
    python -m flexbench \
        --task text \
@@ -184,23 +193,23 @@ FlexBench supports multiple backend implementations:
 
 1. Profile the server:
 
-```sh
-nsys profile --force-overwrite=true \
-    --gpu-metrics-devices=cuda-visible \
-    --output=./results/nsys_profiling \
-    vllm serve $MODEL_PATH \
-    --disable-log-requests \
-    --max-model-len=2048
-```
+    ```sh
+    nsys profile --force-overwrite=true \
+        --gpu-metrics-devices=cuda-visible \
+        --output=./results/nsys_profiling \
+        vllm serve $MODEL_PATH \
+        --disable-log-requests \
+        --max-model-len=2048
+    ```
 
 2. Generate stats:
 
-```sh
-nsys stats --force-overwrite=true \
-    --format=table \
-    --output=./results/nsys_profiling \
-    ./results/nsys_profiling.nsys-rep
-```
+    ```sh
+    nsys stats --force-overwrite=true \
+        --format=table \
+        --output=./results/nsys_profiling \
+        ./results/nsys_profiling.nsys-rep
+    ```
 
 ## Running Tests
 
@@ -235,8 +244,8 @@ The tests use minimal samples and a small model for quick validation.
 
 ## Project page
 
-* https://www.notion.so/flexaihq/FCS-Labs-2025-14aec14ca14580f793d1d82ee7c409fc?pvs=4
-* https://www.notion.so/flexaihq/FlexBoard-181ec14ca14580168baed2d601eedb14?pvs=4
+- https://www.notion.so/flexaihq/FCS-Labs-2025-14aec14ca14580f793d1d82ee7c409fc?pvs=4
+- https://www.notion.so/flexaihq/FlexBoard-181ec14ca14580168baed2d601eedb14?pvs=4
 
 ## Authors
 
