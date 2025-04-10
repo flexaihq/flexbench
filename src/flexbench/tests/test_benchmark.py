@@ -24,11 +24,23 @@ Example manual test:
 import json
 import subprocess
 import sys
+import os
+import signal
+import atexit
 
 import pytest
 
 from flexbench.tests.configs import BASE_CONFIG, TEST_CASES
 from flexbench.tests.server import check_server_health, start_server, stop_server
+
+
+child_pid = None
+def kill_child():
+    if child_pid is None:
+        pass
+    else:
+        os.kill(child_pid, signal.SIGTERM)
+atexit.register(kill_child)
 
 
 def run_benchmark_subprocess(config: dict) -> dict:
@@ -72,6 +84,9 @@ def run_benchmark_subprocess(config: dict) -> dict:
 
     if process.returncode != 0 or not results_file:
         return None
+    
+    global child_pid
+    child_pid = process.pid
 
     # Load and return results
     with open(results_file) as f:

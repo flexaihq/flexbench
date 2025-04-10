@@ -1,5 +1,7 @@
 import os
 import subprocess
+import signal
+import atexit
 import sys
 import time
 from pathlib import Path
@@ -13,12 +15,22 @@ log = get_logger(__name__)
 # Test model configuration
 MODEL_PATH = "HuggingFaceTB/SmolLM2-135M"
 
+child_pid = None
+def kill_child():
+    if child_pid is None:
+        pass
+    else:
+        os.kill(child_pid, signal.SIGTERM)
+atexit.register(kill_child)
 
 def start_server() -> tuple[subprocess.Popen, str]:
     """Start vLLM server with test model."""
     # Change to flexbench root dir to avoid loadgen issues
     original_dir = os.getcwd()
     os.chdir(Path(__file__).parent.parent)
+
+    server_env = os.environ.copy()
+    server_env["VLLM_CPU_KVCACHE_SPACE"] = server_env.get("VLLM_CPU_KVCACHE_SPACE", "2")
 
     process = subprocess.Popen(
         [
@@ -35,6 +47,7 @@ def start_server() -> tuple[subprocess.Popen, str]:
         stderr=subprocess.STDOUT,  # Merge stderr into stdout
         text=True,  # Use text mode for string output
         bufsize=1,  # Line buffering
+        env=server_env,
     )
 
     # Wait for server to start
@@ -58,6 +71,9 @@ def start_server() -> tuple[subprocess.Popen, str]:
         if "Application startup complete" in line:
             break
         time.sleep(0.1)
+
+    global child_pid
+    child_pid = process.pid
 
     return process, original_dir
 

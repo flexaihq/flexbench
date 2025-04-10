@@ -135,7 +135,12 @@ class BaseBackend(ABC):
             resp = s.post(
                 endpoint, headers=headers, json=payload, verify=False, stream=stream
             )
-            resp.raise_for_status()
+
+            try:
+                resp.raise_for_status()
+            except:
+                log.error(f"API request failed: {resp.status_code} - {resp.text}")
+                resp.raise_for_status()
             return resp if stream else resp.json()
 
     def _process_response(self, response: dict | str, streaming: bool = False) -> str:

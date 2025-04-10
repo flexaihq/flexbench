@@ -21,8 +21,7 @@ echo "Installing prerequisites..."
 
 DEBIAN_FRONTEND=noninteractive \
     sudo apt update -qq &&
-    sudo apt install -y -qq gcc-12 g++-12 libnuma-dev
-    sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 10 --slave /usr/bin/g++ g++ /usr/bin/g++-12
+    sudo apt install -y -qq gcc g++ libnuma-dev 
 
 check_installed vim
 
@@ -30,4 +29,6 @@ check_installed vim
 echo "Installing Python dependencies..."
 python -m pip install --upgrade pip
 pip install "cmake>=3.26" wheel packaging ninja "setuptools-scm>=8" numpy datasets
+pip install intel_extension_for_pytorch==2.6.0
+
 set +x

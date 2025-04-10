@@ -1,0 +1,4 @@
+[submodule "vendor/vllm"]
+	path = vendor/vllm
+	url = https://github.com/vllm-project/vllm.git
+	branch = v0.8.2
