@@ -1,7 +1,15 @@
 name: Test
 
 on:
-  workflow_call:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+      - releases/*
 
 jobs:
   test:
