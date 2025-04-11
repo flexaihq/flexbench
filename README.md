@@ -12,6 +12,41 @@ A flexible benchmarking framework for language and vision models, with support f
 
 ## Quick Start
 
+The framework is done to send request to an inference server like Vllm.
+In this context to use flexbench, a inference server need to be setup and then flexbench can be use to send and benchmark requests.
+
+  ┌───────────────────┐                       ┌───────────────────┐
+  │                   │                       │                   │
+  │                   │                       │                   │
+  │    Flexbench      │         --->          │       VLLM        │
+  │                   │                       │                   │
+  │                   │                       │                   │
+  └───────────────────┘                       └───────────────────┘
+
+### Environment Setup
+
+-- Flexbench
+```sh
+./scripts/install_flexbench.sh
+```
+
+-- VLLM
+
+On codespace:
+```sh
+./scripts/install_server_dependencies.sh
+./scripts/install_server_python_dependencies.sh
+./scripts/install_server_vllm.sh
+```
+
+On MacOS:
+```sh
+./scripts/install_macos_server_dependencies.sh
+./scripts/install_server_python_dependencies.sh
+./scripts/install_server_vllm.sh
+```
+
+
 ### Prerequisites
 
 1. Install uv (recommended):
@@ -84,6 +119,9 @@ Currently supports:
 
 ### 1. Server Mode (Streaming)
 
+
+
+
 First, start the vLLM server:
 
 ```sh
@@ -91,8 +129,10 @@ First, start the vLLM server:
 CUDA_VISIBLE_DEVICES=0 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --disable-log-requests \
     --max-model-len=2048
+```
 
 # Multi-GPU
+```sh
 CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
     --disable-log-requests \
     --max-model-len=2048 \
