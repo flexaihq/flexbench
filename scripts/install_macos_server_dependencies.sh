@@ -19,7 +19,7 @@ check_installed pip
 
 echo "Installing prerequisites..."
 
-DEBIAN_FRONTEND=noninteractive \
-    sudo apt update -qq &&
-    sudo apt install -y -qq \
-        neovim 
+brew install gcc@12
+check_installed vim
+
+set +x

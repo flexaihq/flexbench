@@ -25,10 +25,4 @@ DEBIAN_FRONTEND=noninteractive \
 
 check_installed vim
 
-# Install dependencies
-echo "Installing Python dependencies..."
-python -m pip install --upgrade pip
-pip install "cmake>=3.26" wheel packaging ninja "setuptools-scm>=8" numpy datasets
-pip install intel_extension_for_pytorch==2.6.0
-
 set +x

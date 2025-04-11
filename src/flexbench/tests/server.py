@@ -34,8 +34,6 @@ def start_server() -> tuple[subprocess.Popen, str]:
 
     process = subprocess.Popen(
         [
-            "uv",
-            "run",
             "vllm",
             "serve",
             MODEL_PATH,
