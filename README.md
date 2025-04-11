@@ -10,18 +10,28 @@ A flexible benchmarking framework for language and vision models, with support f
 - 🔍 Performance and accuracy evaluation
 - 📊 Detailed metrics including TTFT, throughput, and latency percentiles
 
+## Architecture
+
+FlexBench uses a client-server architecture where the client (FlexBench) connects to a running vLLM server:
+
+```mermaid
+flowchart LR
+    subgraph Terminal 1
+    B[vLLM Server] -->|Model Inference| C[HuggingFace Model]
+    end
+    subgraph Terminal 2
+    A[FlexBench Client] <-->|API Requests/Responses| B
+    A -->|Loads Dataset| D[HuggingFace Dataset]
+    A -->|Records Metrics| E[Results]
+    end
+```
+
+**Important:** The vLLM server and FlexBench client run in separate terminals. You must start the vLLM server first, then run FlexBench in another terminal.
+
 ## Quick Start
 
 The framework is done to send request to an inference server like Vllm.
 In this context to use flexbench, a inference server need to be setup and then flexbench can be use to send and benchmark requests.
-
-  ┌───────────────────┐                       ┌───────────────────┐
-  │                   │                       │                   │
-  │                   │                       │                   │
-  │    Flexbench      │         --->          │       VLLM        │
-  │                   │                       │                   │
-  │                   │                       │                   │
-  └───────────────────┘                       └───────────────────┘
 
 ### Environment Setup
 
@@ -47,34 +57,36 @@ On MacOS:
 ```
 
 
-### Prerequisites
+### Installation
 
-1. Install uv (recommended):
+Using uv (recommended, more stable):
 
 ```sh
+# Optional: install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
-### Option 1: Remote Endpoint
-
-If you're using a remote API endpoint, you only need the client:
-
-```sh
+# Setup environment
 uv sync
-uv pip install -e .
-```
-
-### Option 2: Local Deployment
-
-If you want to run the model locally with vLLM:
-
-```sh
-uv sync
-uv pip install -e ".[local]"
 source .venv/bin/activate
+uv pip install -e .              # Basic installation for remote endpoints
+# uv pip install -e ".[local]"   # For local model inference deployment
 ```
 
-## Model Support
+Using standard venv:
+
+```sh
+# Setup environment
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .                 # Basic installation for remote endpoints
+# pip install -e ".[local]"      # For local model inference deployment
+```
+
+The `[local]` option installs additional dependencies required for local model inference with vLLM.
+
+## Model & Dataset Support
+
+### Models
 
 FlexBench works with any HuggingFace model, with specialized chat templates for:
 
@@ -82,69 +94,48 @@ FlexBench works with any HuggingFace model, with specialized chat templates for:
 - Llama3 models (`meta-llama/Llama-3-*`)
 - DeepSeek models (`deepseek-ai/DeepSeek-*`)
 
-### Tested Models
+### Dataset Support
 
-- **DeepSeek-R1 Series**
-  - Large: `deepseek-ai/DeepSeek-R1-Distill-Llama-70B`
-  - Medium: `deepseek-ai/DeepSeek-R1-Distill-Qwen-32B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`
-  - Small: `deepseek-ai/DeepSeek-R1-Distill-Llama-8B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`
-- **Llama Official**
-  - Llama2: `meta-llama/Llama-2-70b-chat-hf`
-  - Llama3: `meta-llama/Llama-3.1-8B-Instruct`
-  - Quantized: `nm-testing/Llama-3.3-70B-Instruct-FP8-dynamic`
+#### Text Tasks
 
-## Dataset Support
+- Configurable column mapping for input text, output text, and system prompts
+- Examples: `ctuning/MLPerf-OpenOrca`, `Open-Orca/OpenOrca`
 
-### Text Tasks
+#### Vision Tasks
 
-FlexBench supports any HuggingFace dataset with configurable column mapping for:
+- Support for `philschmid/amazon-product-descriptions-vlm` (Beta)
 
-- Input text (`--dataset-input-column`), required
-- Output/reference text (`--dataset-output-column`), for accuracy mode only
-- System prompt (`--dataset-system-prompt-column`), optional
+## Usage
 
-Commonly used datasets:
+### Terminal 1: Start a vLLM Server
 
-- `ctuning/MLPerf-OpenOrca`
-- `Open-Orca/OpenOrca`
-- `AI-MO/NuminaMath-TIR`
+First, start the vLLM server in one terminal:
 
-### Vision Tasks
-
-Currently supports:
-
-- `philschmid/amazon-product-descriptions-vlm` (Beta)
-
-## Usage Examples
-
-### 1. Server Mode (Streaming)
-
-
-
-
-First, start the vLLM server:
+Single GPU:
 
 ```sh
-# Single GPU
-CUDA_VISIBLE_DEVICES=0 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-    --disable-log-requests \
-    --max-model-len=2048
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct --disable-log-requests --max-model-len=2048
 ```
 
-# Multi-GPU
+Multi-GPU:
+
 ```sh
-CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-    --disable-log-requests \
-    --max-model-len=2048 \
-    --tensor-parallel-size 4
+CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve HuggingFaceTB/SmolLM2-135M-Instruct --disable-log-requests --max-model-len=2048 --tensor-parallel-size 4
 ```
 
-Then run the benchmark:
+### Terminal 2: Run FlexBench
+
+WARNING:
+
+- ensure the vLLM server is running before executing FlexBench
+- ensure you are in the `src/flexbench` directory
+
+In a second terminal, run FlexBench to connect to the vLLM server:
 
 ```sh
 python -m flexbench \
     --task text \
-    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+    --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
     --api-server http://localhost:8000 \
     --scenario Server \
     --target-qps 10 \
@@ -152,140 +143,43 @@ python -m flexbench \
     --dataset-input-column question \
     --dataset-output-column response \
     --dataset-system-prompt-column system_prompt \
-    --total-sample-count 200
+    --total-sample-count 100
 ```
 
-### 2. Offline Mode (Batched)
+Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 
-```sh
-python -m flexbench \
-    --task text \
-    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-    --api-server http://localhost:8000 \
-    --scenario Offline \
-    --batch-size 32 \
-    --target-qps inf \
-    --dataset-path ctuning/MLPerf-OpenOrca \
-    --dataset-input-column question \
-    --total-sample-count 200
-```
+## Key Parameters
 
-### 3. Remote Endpoint
+| Parameter | Description | Available Options |
+|-----------|-------------|-------------------|
+| `--task` | Task type | `text`, `vision` |
+| `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
+| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct) |
+| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance) |
+| `--target-qps` | Query rate | Float |
+| `--batch-size` | Batch size for Offline mode | Integer |
 
-```sh
-python -m flexbench \
-    --task text \
-    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-    --api-server https://your-endpoint.com \
-    --api-token your_token \
-    --scenario Server \
-    --target-qps 10 \
-    --dataset-path ctuning/MLPerf-OpenOrca \
-    --dataset-input-column question
-```
+## Additional Options
 
-## Advanced Usage
+For dataset configuration:
 
-### Benchmark Backends
+- `--dataset-input-column`: Input text column (required)
+- `--dataset-output-column`: Reference text column (for accuracy mode)
+- `--dataset-system-prompt-column`: System prompt column (optional)
+- `--dataset-image-column`: Image column (for vision tasks)
 
-FlexBench supports multiple backend implementations:
+For API configuration:
 
-1. **MLPerf LoadGen** (default)
+- `--api-server`: vLLM server URL
+- `--api-token`: Authentication token for remote endpoints
 
-   - MLPerf-compliant benchmarking
-   - Supports both performance and accuracy modes
-   - Example:
+## Testing & Development
 
-   ```sh
-   python -m flexbench \
-       --task text \
-       --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-       --api-server http://localhost:8000 \
-       --scenario Server \
-       --target-qps 10 \
-       --dataset-path ctuning/MLPerf-OpenOrca \
-       --dataset-input-column question \
-       --dataset-output-column response \
-       --dataset-system-prompt-column system_prompt \
-       --total-sample-count 24576 \
-       --accuracy
-   ```
-
-2. **vLLM Direct**
-   - Native vLLM streaming support
-   - Simpler implementation without MLPerf overhead
-   - Adapted from [vllm/benchmarks](https://github.com/vllm-project/vllm/tree/main/benchmarks)
-   - Example:
-
-   ```sh
-   python -m flexbench \
-       --task text \
-       --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-       --api-server http://localhost:8000 \
-       --scenario Server \
-       --target-qps 10 \
-       --dataset-path ctuning/MLPerf-OpenOrca \
-       --dataset-input-column question \
-       --backend vllm
-   ```
-
-### Profiling with NVIDIA Nsight
-
-1. Profile the server:
-
-    ```sh
-    nsys profile --force-overwrite=true \
-        --gpu-metrics-devices=cuda-visible \
-        --output=./results/nsys_profiling \
-        vllm serve $MODEL_PATH \
-        --disable-log-requests \
-        --max-model-len=2048
-    ```
-
-2. Generate stats:
-
-    ```sh
-    nsys stats --force-overwrite=true \
-        --format=table \
-        --output=./results/nsys_profiling \
-        ./results/nsys_profiling.nsys-rep
-    ```
-
-## Running Tests
-
-Tests are located in `src/flexbench/tests/` and use SmolLM2-135M with MLPerf-OpenOrca dataset.
-
-Run them with:
+Run tests with:
 
 ```sh
 pytest . -v -s
 ```
-
-The tests will automatically:
-
-1. Start a vLLM server with the test model
-2. Run all test cases
-3. Shut down the server when done
-
-The test suite covers:
-
-- vLLM backend (Server and Offline modes)
-- LoadGen backend (Server and Offline modes, both performance and accuracy tests)
-
-The tests use minimal samples and a small model for quick validation.
-
-## Next steps
-
-- Push results to [FlexBoard](https://github.com/flexaihq/flexboard).
-- Collect and record all relevant information about hardware, software, model, dataset, and benchmarking results for further data analytics and predictive modeling.
-- Compare results with existing MLPerf data.
-- Add telemetry with nsys and sampling using hardware counters.
-- Build predictive models to suggest the most optimal hardware for running a given model, and integrate them with FCS.
-
-## Project page
-
-- https://www.notion.so/flexaihq/FCS-Labs-2025-14aec14ca14580f793d1d82ee7c409fc?pvs=4
-- https://www.notion.so/flexaihq/FlexBoard-181ec14ca14580168baed2d601eedb14?pvs=4
 
 ## Authors
 
