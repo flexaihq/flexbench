@@ -32,6 +32,28 @@ class LoadgenResult:
     p90_latency_ns: float | None = None
     p99_latency_ns: float | None = None
 
+    # First Token Latency metrics
+    min_first_token_latency_ns: float | None = None
+    max_first_token_latency_ns: float | None = None
+    mean_first_token_latency_ns: float | None = None
+    p50_first_token_latency_ns: float | None = None
+    p90_first_token_latency_ns: float | None = None
+    p95_first_token_latency_ns: float | None = None
+    p97_first_token_latency_ns: float | None = None
+    p99_first_token_latency_ns: float | None = None
+    p99_9_first_token_latency_ns: float | None = None
+
+    # Time to Output Token metrics
+    min_tpot_ns: float | None = None
+    max_tpot_ns: float | None = None
+    mean_tpot_ns: float | None = None
+    p50_tpot_ns: float | None = None
+    p90_tpot_ns: float | None = None
+    p95_tpot_ns: float | None = None
+    p97_tpot_ns: float | None = None
+    p99_tpot_ns: float | None = None
+    p99_9_tpot_ns: float | None = None
+
     # Accuracy metrics
     rouge1: float | None = None
     rouge2: float | None = None
@@ -81,12 +103,33 @@ class LoadgenResult:
             return float(match.group(1)) if match else None
 
         patterns = {
+            # Basic performance metrics
             "samples_per_second": r"(?:Completed )?[Ss]amples per second\s*:\s*([\d.]+)",
             "tokens_per_second": r"(?:Completed )?[Tt]okens per second\s*:\s*([\d.]+)",
             "mean_latency_ns": r"Mean latency \(ns\)\s*:\s*([\d.]+)",
             "p50_latency_ns": r"50.00 percentile latency \(ns\)\s*:\s*([\d.]+)",
             "p90_latency_ns": r"90.00 percentile latency \(ns\)\s*:\s*([\d.]+)",
             "p99_latency_ns": r"99.00 percentile latency \(ns\)\s*:\s*([\d.]+)",
+            # First Token Latency metrics
+            "min_first_token_latency_ns": r"Min First Token latency \(ns\)\s*:\s*([\d.]+)",
+            "max_first_token_latency_ns": r"Max First Token latency \(ns\)\s*:\s*([\d.]+)",
+            "mean_first_token_latency_ns": r"Mean First Token latency \(ns\)\s*:\s*([\d.]+)",
+            "p50_first_token_latency_ns": r"50.00 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            "p90_first_token_latency_ns": r"90.00 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            "p95_first_token_latency_ns": r"95.00 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            "p97_first_token_latency_ns": r"97.00 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            "p99_first_token_latency_ns": r"99.00 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            "p99_9_first_token_latency_ns": r"99.90 percentile first token latency \(ns\)\s*:\s*([\d.]+)",
+            # Time to Output Token (TPOT) metrics
+            "min_tpot_ns": r"Min Time to Output Token \(ns\)\s*:\s*([\d.]+)",
+            "max_tpot_ns": r"Max Time to Output Token \(ns\)\s*:\s*([\d.]+)",
+            "mean_tpot_ns": r"Mean Time to Output Token \(ns\)\s*:\s*([\d.]+)",
+            "p50_tpot_ns": r"50.00 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
+            "p90_tpot_ns": r"90.00 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
+            "p95_tpot_ns": r"95.00 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
+            "p97_tpot_ns": r"97.00 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
+            "p99_tpot_ns": r"99.00 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
+            "p99_9_tpot_ns": r"99.90 percentile time to output token \(ns\)\s*:\s*([\d.]+)",
         }
 
         metrics = {k: extract_float(v) for k, v in patterns.items()}
