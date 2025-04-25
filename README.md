@@ -98,10 +98,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve HuggingFaceTB/SmolLM2-135M-Instruct --di
 
 ### Terminal 2: Run FlexBench
 
-WARNING:
-
-- ensure the vLLM server is running before executing FlexBench
-- ensure you are in the `src/flexbench` directory
+WARNING: ensure the vLLM server is running before executing FlexBench
 
 In a second terminal, run FlexBench to connect to the vLLM server:
 
