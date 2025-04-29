@@ -66,6 +66,18 @@ class LoadgenResult:
     tokens_per_sample: float | None = None
 
     @classmethod
+    def error_result(cls, error_message: str = "Unknown error") -> "LoadgenResult":
+        """Create a result object representing an error state."""
+        log.error(f"Error in LoadGenResult: {error_message}, returning error result")
+        return cls(
+            scenario="Unknown",
+            mode="PerformanceOnly",
+            valid=False,
+            completed=0,
+            total_samples=0,
+        )
+
+    @classmethod
     def from_mlperf_log(
         cls, log_path: Path, config: BenchmarkConfig, mode: str = "PerformanceOnly"
     ) -> "LoadgenResult":
@@ -84,7 +96,7 @@ class LoadgenResult:
             metrics = run_accuracy_check(
                 model_path=config.model_path,
                 dataset_config=config.dataset_config,
-                mlperf_accuracy_file=log_path,
+                mlperf_accuracy_file=log_path.parent / "mlperf_log_accuracy.json",
             )
             return cls(
                 scenario=config.scenario,
@@ -169,9 +181,13 @@ class LoadGenRunner(BaseRunner):
             else:
                 result = self._run_benchmark()
                 self.all_results.append(result)
-                return (
-                    result.__dict__ if result else LoadgenResult.error_result().__dict__
-                )
+                # Handle both dict and LoadgenResult cases
+                if isinstance(result, dict):
+                    return result
+                elif isinstance(result, LoadgenResult):
+                    return result.__dict__
+                else:
+                    return LoadgenResult.error_result("Invalid result type").__dict__
         finally:
             self.backend.stop()
 
@@ -343,7 +359,7 @@ class LoadGenRunner(BaseRunner):
             log.error(f"Error running benchmark process: {e}", exc_info=True)
             return {"error": str(e), "qps": target_qps}
 
-    def _run_benchmark(self) -> LoadgenResult:
+    def _run_benchmark(self) -> LoadgenResult | dict:
         test_settings = self._setup_test_settings(self.config)
         log_settings = self._setup_logging(
             self.results_dir,
@@ -358,11 +374,12 @@ class LoadGenRunner(BaseRunner):
             result = LoadgenResult.from_mlperf_log(
                 log_path=self.results_dir / "mlperf_log_summary.txt",
                 config=self.config,
-                mode="PerformanceOnly",
+                mode="AccuracyOnly" if self.config.accuracy else "PerformanceOnly",
             )
             return result
         except subprocess.CalledProcessError as e:
             log.error(f"Benchmark process failed: {e}")
+            return {"error": str(e)}
         except Exception as e:
             log.error(f"Error running benchmark process: {e}")
             return {"error": str(e)}
