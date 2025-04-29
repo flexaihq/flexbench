@@ -24,9 +24,11 @@ class BenchmarkConfig:
     api_server: str
     dataset_config: DatasetConfig
     scenario: tp.Literal["Offline", "Server"]
-    target_qps: float
+    target_qps: float | None = None
 
     # Optional settings
+    sweep_mode: bool = False
+    num_sweep_points: int = 10  # Default number of points to test in sweep mode
     tokenizer_path: str | None = None
     api_token: str | None = None
     batch_size: int | None = None
@@ -37,6 +39,20 @@ class BenchmarkConfig:
     config_path: str = "user.conf"
     enable_trace: bool = False
     log_output_to_stdout: bool = True
+
+    def __post_init__(self):
+        if not self.sweep_mode and self.target_qps is None:
+            raise ValueError(
+                "Either sweep_mode must be True or target_qps must be specified"
+            )
+
+        if self.sweep_mode and self.target_qps is not None:
+            raise ValueError(
+                f"Cannot specify both sweep_mode={self.sweep_mode} and target_qps={self.target_qps}"
+            )
+
+        if self.scenario == "Server" and self.batch_size is not None:
+            raise ValueError("Batch size is not applicable for Server scenario")
 
 
 class BaseRunner(ABC):

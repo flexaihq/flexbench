@@ -2,6 +2,8 @@
 
 A flexible benchmarking framework for language and vision models, with support for both MLPerf loadgen and vLLM backends.
 
+For reference: [MLPerf Inference Benchmark](https://arxiv.org/pdf/1911.02549)
+
 ## Features
 
 - 🚀 Support for both Server (streaming) and Offline (batched) inference modes
@@ -9,6 +11,7 @@ A flexible benchmarking framework for language and vision models, with support f
 - 🎯 MLPerf-compliant benchmarking with loadgen
 - 🔍 Performance and accuracy evaluation
 - 📊 Detailed metrics including TTFT, throughput, and latency percentiles
+- 📈 QPS sweep mode for discovering performance characteristics
 
 ## Architecture
 
@@ -103,12 +106,30 @@ WARNING: ensure the vLLM server is running before executing FlexBench
 In a second terminal, run FlexBench to connect to the vLLM server:
 
 ```sh
+# Standard mode with target QPS
 python -m flexbench \
     --task text \
     --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
     --api-server http://localhost:8000 \
     --scenario Server \
     --target-qps 10 \
+    --dataset-path ctuning/MLPerf-OpenOrca \
+    --dataset-input-column question \
+    --dataset-output-column response \
+    --dataset-system-prompt-column system_prompt \
+    --total-sample-count 100
+```
+
+For sweep mode to discover performance characteristics:
+
+```sh
+python -m flexbench \
+    --task text \
+    --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
+    --api-server http://localhost:8000 \
+    --scenario Server \
+    --sweep \
+    --num-points 20 \
     --dataset-path ctuning/MLPerf-OpenOrca \
     --dataset-input-column question \
     --dataset-output-column response \
@@ -126,8 +147,10 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 | `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
 | `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct) |
 | `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance) |
-| `--target-qps` | Query rate | Float |
-| `--batch-size` | Batch size for Offline mode | Integer |
+| `--target-qps` | Target query rate to achieve | Float |
+| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with --target-qps) |
+| `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
+| `--batch-size` | Batch size, for Offline mode only | Integer |
 
 ## Additional Options
 

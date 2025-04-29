@@ -1,4 +1,8 @@
+import json
+import os
 import re
+import subprocess
+import sys
 import typing as tp
 from dataclasses import dataclass
 from datetime import datetime
@@ -154,14 +158,258 @@ class LoadGenRunner(BaseRunner):
     def __init__(self, config: BenchmarkConfig):
         super().__init__(config)
         self.backend = LoadGenBackend(config=config, results_dir=self.results_dir)
+        self.all_results = []
 
     async def run(self) -> dict:
         """Run benchmark and return results."""
         try:
-            result = self._run_benchmark()
-            return result.__dict__ if result else LoadgenResult.error_result().__dict__
+            if self.config.sweep_mode:
+                result = await self._run_sweep_benchmark()
+                return result
+            else:
+                result = self._run_benchmark()
+                self.all_results.append(result)
+                return (
+                    result.__dict__ if result else LoadgenResult.error_result().__dict__
+                )
         finally:
             self.backend.stop()
+
+    async def _run_sweep_benchmark(
+        self, initial_qps: float = 1000.0, budget: float = 1.2, num_points: int = None
+    ) -> dict:
+        """Run sweep benchmark with multiple QPS values using separate processes."""
+        log.info("Starting sweep benchmark mode")
+
+        # First, run with high QPS to find max effective throughput in a separate process
+        log.info(f"Finding maximum throughput with QPS={initial_qps}")
+
+        # Run max throughput test in a separate process
+        max_throughput_result = self._run_single_benchmark_process(initial_qps)
+
+        # Extract the max effective QPS achieved from the result
+        max_throughput = max_throughput_result.get("samples_per_second", 0)
+        if max_throughput <= 0:
+            log.warning(
+                "Failed to determine maximum throughput, defaulting to initial value"
+            )
+            max_throughput = initial_qps / 2
+
+        log.info(f"Maximum throughput detected: {max_throughput:.2f} QPS")
+
+        # Create a range of QPS values to sweep through
+        qps_values = []
+        max_target_qps = max_throughput * budget
+        log.info(f"Running sweep with {num_points} data points")
+        num_points = num_points or self.config.num_sweep_points
+        for i in range(1, num_points + 1):
+            qps = (i * max_target_qps) / num_points
+            qps_values.append(round(qps, 2))
+
+        log.info(f"Sweeping through QPS values: {[f'{qps:.2f}' for qps in qps_values]}")
+
+        # Run benchmarks for each QPS value in separate processes
+        sweep_results = []
+        for qps in qps_values:
+            log.info(f"Running benchmark with QPS={qps:.2f}")
+            result = self._run_single_benchmark_process(qps)
+            sweep_results.append(result)
+
+        # Return a dictionary containing all results
+        return {
+            "max_throughput": max_throughput,
+            "sweep_results": sweep_results,
+            "latest_result": sweep_results[-1] if sweep_results else {},
+        }
+
+    def _run_single_benchmark_process(self, target_qps: float) -> dict:
+        """Run a single benchmark with the specified QPS in a separate process."""
+        try:
+            # Prepare command to run benchmark in a separate process
+            cmd = [
+                sys.executable,
+                "-m",
+                "flexbench",
+                "--task",
+                self.config.task,
+                "--model-path",
+                self.config.model_path,
+                "--api-server",
+                self.config.api_server,
+                "--scenario",
+                self.config.scenario,
+                "--target-qps",
+                str(target_qps),
+                "--dataset-path",
+                self.config.dataset_config.path,
+                "--dataset-input-column",
+                self.config.dataset_config.input_column,
+                "--backend",
+                "loadgen",
+            ]
+
+            # Add optional arguments
+            if self.config.dataset_config.output_column:
+                cmd.extend(
+                    [
+                        "--dataset-output-column",
+                        self.config.dataset_config.output_column,
+                    ]
+                )
+
+            if self.config.dataset_config.system_prompt_column:
+                cmd.extend(
+                    [
+                        "--dataset-system-prompt-column",
+                        self.config.dataset_config.system_prompt_column,
+                    ]
+                )
+
+            if self.config.dataset_config.image_column:
+                cmd.extend(
+                    ["--dataset-image-column", self.config.dataset_config.image_column]
+                )
+
+            if self.config.dataset_config.split:
+                cmd.extend(["--dataset-split", self.config.dataset_config.split])
+
+            if self.config.tokenizer_path:
+                cmd.extend(["--tokenizer-path", self.config.tokenizer_path])
+
+            if self.config.api_token:
+                cmd.extend(["--api-token", self.config.api_token])
+
+            if self.config.total_sample_count:
+                cmd.extend(
+                    ["--total-sample-count", str(self.config.total_sample_count)]
+                )
+
+            if self.config.batch_size:
+                cmd.extend(["--batch-size", str(self.config.batch_size)])
+
+            if self.config.max_generated_tokens:
+                cmd.extend(
+                    ["--max-generated-tokens", str(self.config.max_generated_tokens)]
+                )
+
+            if self.config.accuracy:
+                cmd.append("--accuracy")
+
+            # If we're running a subprocess for sweep, pass the same num_points
+            if (
+                self.config.sweep_mode and self.config.num_sweep_points != 10
+            ):  # If not default
+                cmd.extend(["--num-points", str(self.config.num_sweep_points)])
+
+            # Always use DEBUG log level for child processes during sweep mode
+            env = os.environ.copy()
+            env["LOG_LEVEL"] = "DEBUG"
+
+            # Print a separator to visually distinguish different runs
+            separator = (
+                f"\n{'-'*80}\n{' '*30}BENCHMARK RUN: QPS={target_qps}\n{'-'*80}\n"
+            )
+            print(separator)
+
+            # Run process without capturing output so it appears in real-time
+            log.debug(f"Running command: {' '.join(cmd)}")
+
+            # Pass stdout/stderr through to parent process to see output in real-time
+            # Wait for process to complete before continuing
+            process = subprocess.run(
+                cmd,
+                check=False,  # Don't raise exception, let us handle errors
+                env=env,
+                text=True,
+                # Don't capture output - let it flow to the console in real time
+            )
+
+            if process.returncode != 0:
+                log.error(f"Subprocess failed with exit code {process.returncode}")
+                return {
+                    "error": f"Process exited with code {process.returncode}",
+                    "qps": target_qps,
+                }
+
+            # Find the results file from our own results directory
+            results_dir = self.results_dir / f"sweep_qps_{target_qps:.2f}"
+            results_dir.mkdir(parents=True, exist_ok=True)
+
+            # Check the last few directories created in the results folder to find our results
+            main_results_dir = Path("results")
+            if main_results_dir.exists():
+                # Find all directories created in the last 5 minutes
+                recent_dirs = []
+                now = datetime.now()
+
+                for dir_path in main_results_dir.glob("*"):
+                    if dir_path.is_dir():
+                        try:
+                            # Parse the directory name to get timestamp (format: YYYYMMDD-HHMMSS)
+                            dir_time_str = dir_path.name
+                            dir_time = datetime.strptime(dir_time_str, "%Y%m%d-%H%M%S")
+                            time_diff = (now - dir_time).total_seconds()
+
+                            # If directory was created in the last 5 minutes, consider it
+                            if time_diff < 300:  # 5 minutes in seconds
+                                recent_dirs.append((dir_path, time_diff))
+                        except (ValueError, IndexError):
+                            # Skip directories that don't match the expected format
+                            continue
+
+                # Sort by time (most recent first)
+                recent_dirs.sort(key=lambda x: x[1])
+
+                # Look for benchmark_results.json in the most recent directories
+                result_path = None
+                for dir_path, _ in recent_dirs[
+                    :5
+                ]:  # Check the 5 most recent directories
+                    candidate = dir_path / "benchmark_results.json"
+                    if candidate.exists():
+                        result_path = candidate
+                        log.debug(f"Found results file in {dir_path}")
+                        break
+
+            # If we couldn't find it that way, check if the subprocess printed the path
+            if not result_path:
+                # Try checking the previous command output logs for the results path
+                try:
+                    log_file = self.results_dir / "subprocess_logs.txt"
+                    if log_file.exists():
+                        with open(log_file, "r") as f:
+                            content = f.read()
+                            for line in content.splitlines():
+                                if "Results saved to:" in line:
+                                    path_str = line.split("Results saved to:")[
+                                        1
+                                    ].strip()
+                                    path = Path(path_str)
+                                    if path.exists():
+                                        result_path = path
+                                        break
+                except Exception as e:
+                    log.warning(f"Error while searching for results in logs: {e}")
+
+            if not result_path:
+                log.warning(f"Could not find results file for QPS={target_qps}")
+                return {"error": "No results found", "qps": target_qps}
+
+            # Load and return results
+            try:
+                with open(result_path) as f:
+                    result = json.load(f)
+                    log.debug(f"Successfully loaded results from {result_path}")
+                    # Add QPS target for reference
+                    result["target_qps"] = target_qps
+                    return result
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                log.error(f"Error loading result file: {e}")
+                return {"error": f"Failed to load results: {str(e)}", "qps": target_qps}
+
+        except Exception as e:
+            log.error(f"Error running benchmark process: {e}", exc_info=True)
+            return {"error": str(e), "qps": target_qps}
 
     def _run_benchmark(self) -> LoadgenResult:
         test_settings = self._setup_test_settings(self.config)
@@ -170,23 +418,22 @@ class LoadGenRunner(BaseRunner):
             self.config.log_output_to_stdout,
             self.config.enable_trace,
         )
+        try:
+            lg.StartTestWithLogSettings(
+                self.backend.sut, self.backend.qsl, test_settings, log_settings
+            )
 
-        lg.StartTestWithLogSettings(
-            self.backend.sut, self.backend.qsl, test_settings, log_settings
-        )
-
-        if test_settings.mode == lg.TestMode.PerformanceOnly:
-            return LoadgenResult.from_mlperf_log(
+            result = LoadgenResult.from_mlperf_log(
                 log_path=self.results_dir / "mlperf_log_summary.txt",
                 config=self.config,
                 mode="PerformanceOnly",
             )
-        else:
-            return LoadgenResult.from_mlperf_log(
-                log_path=self.results_dir / "mlperf_log_accuracy.json",
-                config=self.config,
-                mode="AccuracyOnly",
-            )
+            return result
+        except subprocess.CalledProcessError as e:
+            log.error(f"Benchmark process failed: {e}")
+        except Exception as e:
+            log.error(f"Error running benchmark process: {e}")
+            return {"error": str(e)}
 
     @staticmethod
     def _setup_results_dir() -> Path:

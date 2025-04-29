@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import json
+import os
+import sys
 
 from flexbench.dataset.base import DatasetConfig
 from flexbench.runners.base import BenchmarkConfig
@@ -36,12 +38,28 @@ def get_args():
         required=True,
         help="MLPerf scenario (Offline or Server)",
     )
-    parser.add_argument(
+
+    # Target QPS configuration (either --target-qps or --sweep must be provided)
+    qps_group = parser.add_mutually_exclusive_group(required=True)
+    qps_group.add_argument(
         "--target-qps",
         type=float,
-        required=True,
         help="Target queries per second",
     )
+    qps_group.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Run sweep mode: first find max QPS, then sweep different QPS values",
+    )
+
+    # Add num_points parameter for sweep mode
+    parser.add_argument(
+        "--num-points",
+        type=int,
+        default=10,
+        help="Number of QPS points to test in sweep mode (default: 10)",
+    )
+
     parser.add_argument(
         "--dataset-path",
         required=True,
@@ -132,6 +150,8 @@ async def async_main() -> dict:
         dataset_config=dataset_config,
         scenario=args.scenario,
         target_qps=args.target_qps,
+        sweep_mode=args.sweep,
+        num_sweep_points=args.num_points,  # Use the CLI argument value
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
         accuracy=args.accuracy,
@@ -149,12 +169,33 @@ async def async_main() -> dict:
     log.info("Benchmark run completed")
     log.info(f"Results saved to: {results_path.absolute()}")
 
+    # Update result with path for subprocesses to find
+    if isinstance(result, dict):
+        result["results_path"] = str(results_path.absolute())
+
     return result
 
 
 def main():
-    return asyncio.run(async_main())
+    try:
+        result = asyncio.run(async_main())
+        # For subprocess runs, print the path to help parent process find it
+        if isinstance(result, dict) and "results_path" in result:
+            print(f"Results saved to: {result['results_path']}")
+        return 0
+    except KeyboardInterrupt:
+        print("Benchmark interrupted by user")
+        return 130
+    except Exception as e:
+        log.error(f"Benchmark failed: {e}", exc_info=True)
+        # Make sure we print the error to stdout for parent process to see
+        if os.environ.get("LOG_LEVEL", "").upper() == "DEBUG":
+            import traceback
+
+            print(f"ERROR: {e}")
+            print(traceback.format_exc())
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
