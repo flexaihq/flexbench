@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import sys
+from pathlib import Path
 
 from flexbench.dataset.base import DatasetConfig
 from flexbench.runners.base import BenchmarkConfig
@@ -101,7 +102,7 @@ def get_args():
         help="Image column name (required for vision tasks)",
     )
     parser.add_argument(
-        "--tokenizer-path",
+        "--tokenizer-path-override",
         help="Custom tokenizer path if different from model",
     )
     parser.add_argument(
@@ -124,6 +125,10 @@ def get_args():
         default=1024,
         help="Maximum tokens to generate (default: 1024)",
     )
+    parser.add_argument(
+        "--output-dir",
+        help="Directory to store benchmark results",
+    )
     return parser.parse_args()
 
 
@@ -144,25 +149,33 @@ async def async_main() -> dict:
     benchmark_config = BenchmarkConfig(
         task=args.task,
         model_path=args.model_path,
-        tokenizer_path=args.tokenizer_path,
+        tokenizer_path_override=args.tokenizer_path_override,
         api_server=args.api_server,
         api_token=args.api_token,
         dataset_config=dataset_config,
         scenario=args.scenario,
         target_qps=args.target_qps,
         sweep_mode=args.sweep,
-        num_sweep_points=args.num_points,  # Use the CLI argument value
+        num_sweep_points=args.num_points,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
         accuracy=args.accuracy,
         total_sample_count=args.total_sample_count,
+        output_dir=args.output_dir,  # Add the output_dir parameter
     )
 
     runner = create_benchmark_runner(args.backend, benchmark_config)
     result = await runner.run()
 
     # Save results to file
-    results_path = runner.results_dir / "benchmark_results.json"
+    # Use the specified output directory if provided
+    if args.output_dir:
+        results_dir = Path(args.output_dir)
+        results_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        results_dir = runner.results_dir
+
+    results_path = results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
         json.dump(result, f, indent=2)
 

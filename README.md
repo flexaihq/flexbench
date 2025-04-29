@@ -161,13 +161,15 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 |-----------|-------------|-------------------|
 | `--task` | Task type | `text`, `vision` |
 | `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
-| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct) |
-| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. |
+| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - *WIP*) |
+| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. Not compatible with `--sweep`. |
 | `--dataset-output-column` | Reference text column (for accuracy mode) | String |
 | `--target-qps` | Target query rate to achieve | Float |
-| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with --target-qps). Automatically tests multiple QPS levels to discover performance limits and saturation points. |
+| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with `--target-qps` and `--accuracy`). Automatically tests multiple QPS levels to discover performance limits and saturation points. |
 | `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
 | `--batch-size` | Batch size, for Offline mode only | Integer |
+
+For more details on each parameter, use `python -m flexbench --help`.
 
 ### Sweep Mode
 

@@ -29,7 +29,7 @@ class BenchmarkConfig:
     # Optional settings
     sweep_mode: bool = False
     num_sweep_points: int = 10  # Default number of points to test in sweep mode
-    tokenizer_path: str | None = None
+    tokenizer_path_override: str | None = None
     api_token: str | None = None
     batch_size: int | None = None
     max_generated_tokens: int | None = None
@@ -39,6 +39,7 @@ class BenchmarkConfig:
     config_path: str = "user.conf"
     enable_trace: bool = False
     log_output_to_stdout: bool = True
+    output_dir: str | None = None
 
     def __post_init__(self):
         if not self.sweep_mode and self.target_qps is None:
@@ -48,11 +49,18 @@ class BenchmarkConfig:
 
         if self.sweep_mode and self.target_qps is not None:
             raise ValueError(
-                f"Cannot specify both sweep_mode={self.sweep_mode} and target_qps={self.target_qps}"
+                f"Cannot specify both sweep_mode={self.sweep_mode} "
+                f"and target_qps={self.target_qps}"
             )
 
         if self.scenario == "Server" and self.batch_size is not None:
             raise ValueError("Batch size is not applicable for Server scenario")
+
+        if self.sweep_mode and self.accuracy:
+            raise ValueError(
+                "Sweep mode is not compatible with accuracy testing. "
+                "Use --target-qps for accuracy mode."
+            )
 
 
 class BaseRunner(ABC):
@@ -60,7 +68,13 @@ class BaseRunner(ABC):
 
     def __init__(self, config: BenchmarkConfig):
         self.config = config
-        self.results_dir = Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        # Set default results directory with timestamp, or use provided output directory
+        self.results_dir = (
+            Path(config.output_dir)
+            if config.output_dir
+            else Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
+        )
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
@@ -81,7 +95,7 @@ class BaseBackend(ABC):
             max_generated_tokens=config.max_generated_tokens,
         )
         self.tokenizer = AutoTokenizer.from_pretrained(
-            config.tokenizer_path or config.model_path,
+            config.tokenizer_path_override or config.model_path,
             use_fast=True,
             padding_side="left",
         )

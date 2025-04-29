@@ -225,6 +225,10 @@ class LoadGenRunner(BaseRunner):
     def _run_single_benchmark_process(self, target_qps: float) -> dict:
         """Run a single benchmark with the specified QPS in a separate process."""
         try:
+            # Create a specific directory for this QPS run
+            sweep_dir = self.results_dir / f"sweep_qps_{target_qps:.2f}"
+            sweep_dir.mkdir(parents=True, exist_ok=True)
+
             # Prepare command to run benchmark in a separate process
             cmd = [
                 sys.executable,
@@ -246,17 +250,11 @@ class LoadGenRunner(BaseRunner):
                 self.config.dataset_config.input_column,
                 "--backend",
                 "loadgen",
+                "--output-dir",
+                str(sweep_dir),  # Pass the specific output directory
             ]
 
             # Add optional arguments
-            if self.config.dataset_config.output_column:
-                cmd.extend(
-                    [
-                        "--dataset-output-column",
-                        self.config.dataset_config.output_column,
-                    ]
-                )
-
             if self.config.dataset_config.system_prompt_column:
                 cmd.extend(
                     [
@@ -273,8 +271,10 @@ class LoadGenRunner(BaseRunner):
             if self.config.dataset_config.split:
                 cmd.extend(["--dataset-split", self.config.dataset_config.split])
 
-            if self.config.tokenizer_path:
-                cmd.extend(["--tokenizer-path", self.config.tokenizer_path])
+            if self.config.tokenizer_path_override:
+                cmd.extend(
+                    ["--tokenizer-path-override", self.config.tokenizer_path_override]
+                )
 
             if self.config.api_token:
                 cmd.extend(["--api-token", self.config.api_token])
@@ -292,15 +292,6 @@ class LoadGenRunner(BaseRunner):
                     ["--max-generated-tokens", str(self.config.max_generated_tokens)]
                 )
 
-            if self.config.accuracy:
-                cmd.append("--accuracy")
-
-            # If we're running a subprocess for sweep, pass the same num_points
-            if (
-                self.config.sweep_mode and self.config.num_sweep_points != 10
-            ):  # If not default
-                cmd.extend(["--num-points", str(self.config.num_sweep_points)])
-
             # Always use DEBUG log level for child processes during sweep mode
             env = os.environ.copy()
             env["LOG_LEVEL"] = "DEBUG"
@@ -315,13 +306,11 @@ class LoadGenRunner(BaseRunner):
             log.debug(f"Running command: {' '.join(cmd)}")
 
             # Pass stdout/stderr through to parent process to see output in real-time
-            # Wait for process to complete before continuing
             process = subprocess.run(
                 cmd,
                 check=False,  # Don't raise exception, let us handle errors
                 env=env,
                 text=True,
-                # Don't capture output - let it flow to the console in real time
             )
 
             if process.returncode != 0:
@@ -331,67 +320,10 @@ class LoadGenRunner(BaseRunner):
                     "qps": target_qps,
                 }
 
-            # Find the results file from our own results directory
-            results_dir = self.results_dir / f"sweep_qps_{target_qps:.2f}"
-            results_dir.mkdir(parents=True, exist_ok=True)
+            # Look directly in the specified directory for results
+            result_path = sweep_dir / "benchmark_results.json"
 
-            # Check the last few directories created in the results folder to find our results
-            main_results_dir = Path("results")
-            if main_results_dir.exists():
-                # Find all directories created in the last 5 minutes
-                recent_dirs = []
-                now = datetime.now()
-
-                for dir_path in main_results_dir.glob("*"):
-                    if dir_path.is_dir():
-                        try:
-                            # Parse the directory name to get timestamp (format: YYYYMMDD-HHMMSS)
-                            dir_time_str = dir_path.name
-                            dir_time = datetime.strptime(dir_time_str, "%Y%m%d-%H%M%S")
-                            time_diff = (now - dir_time).total_seconds()
-
-                            # If directory was created in the last 5 minutes, consider it
-                            if time_diff < 300:  # 5 minutes in seconds
-                                recent_dirs.append((dir_path, time_diff))
-                        except (ValueError, IndexError):
-                            # Skip directories that don't match the expected format
-                            continue
-
-                # Sort by time (most recent first)
-                recent_dirs.sort(key=lambda x: x[1])
-
-                # Look for benchmark_results.json in the most recent directories
-                result_path = None
-                for dir_path, _ in recent_dirs[
-                    :5
-                ]:  # Check the 5 most recent directories
-                    candidate = dir_path / "benchmark_results.json"
-                    if candidate.exists():
-                        result_path = candidate
-                        log.debug(f"Found results file in {dir_path}")
-                        break
-
-            # If we couldn't find it that way, check if the subprocess printed the path
-            if not result_path:
-                # Try checking the previous command output logs for the results path
-                try:
-                    log_file = self.results_dir / "subprocess_logs.txt"
-                    if log_file.exists():
-                        with open(log_file, "r") as f:
-                            content = f.read()
-                            for line in content.splitlines():
-                                if "Results saved to:" in line:
-                                    path_str = line.split("Results saved to:")[
-                                        1
-                                    ].strip()
-                                    path = Path(path_str)
-                                    if path.exists():
-                                        result_path = path
-                                        break
-                except Exception as e:
-                    log.warning(f"Error while searching for results in logs: {e}")
-
-            if not result_path:
+            if not result_path.exists():
                 log.warning(f"Could not find results file for QPS={target_qps}")
                 return {"error": "No results found", "qps": target_qps}
 
