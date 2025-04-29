@@ -40,7 +40,7 @@ class LoadGenBackend(BaseBackend):
             self.ft_resp_thread = None
         else:
             self.batch_size = config.batch_size or self.total_sample_count
-            self.worker_threads = []
+            self.worker_threads: list[threading.Thread] = []
             self.query_queue = queue.Queue()
 
     def start(self):

@@ -2,8 +2,6 @@
 
 A flexible benchmarking framework for language and vision models, with support for both MLPerf loadgen and vLLM backends.
 
-For reference: [MLPerf Inference Benchmark](https://arxiv.org/pdf/1911.02549)
-
 ## Features
 
 - 🚀 Support for both Server (streaming) and Offline (batched) inference modes
@@ -30,6 +28,26 @@ flowchart LR
 ```
 
 **Important:** The vLLM server and FlexBench client run in separate terminals. You must start the vLLM server first, then run FlexBench in another terminal.
+
+## Inference Modes
+
+FlexBench supports two primary inference modes based on MLPerf standards:
+
+### Server Mode (Streaming)
+
+In Server mode, queries arrive at the system following a Poisson distribution, mimicking real-world request patterns:
+
+![Server Mode Query Pattern](./assets/server_mode_chart.png)
+
+### Offline Mode (Batched)
+
+In Offline mode, all queries are sent to the system at once, maximizing throughput:
+
+![Offline Mode Query Pattern](./assets/offline_mode_chart.png)
+
+### MLPerf Inference Benchmark
+
+For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
 
 ## Quick Start
 
@@ -115,7 +133,6 @@ python -m flexbench \
     --target-qps 10 \
     --dataset-path ctuning/MLPerf-OpenOrca \
     --dataset-input-column question \
-    --dataset-output-column response \
     --dataset-system-prompt-column system_prompt \
     --total-sample-count 100
 ```
@@ -132,7 +149,6 @@ python -m flexbench \
     --num-points 20 \
     --dataset-path ctuning/MLPerf-OpenOrca \
     --dataset-input-column question \
-    --dataset-output-column response \
     --dataset-system-prompt-column system_prompt \
     --total-sample-count 100
 ```
@@ -146,11 +162,34 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 | `--task` | Task type | `text`, `vision` |
 | `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
 | `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct) |
-| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance) |
+| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. |
+| `--dataset-output-column` | Reference text column (for accuracy mode) | String |
 | `--target-qps` | Target query rate to achieve | Float |
-| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with --target-qps) |
+| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with --target-qps). Automatically tests multiple QPS levels to discover performance limits and saturation points. |
 | `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
 | `--batch-size` | Batch size, for Offline mode only | Integer |
+
+### Sweep Mode
+
+Sweep mode automates the process of finding your model's performance curve by:
+
+1. First determining the maximum throughput your model can handle
+2. Then testing a range of QPS values (from low to high) to map the complete performance profile
+3. Capturing metrics like latency and throughput at each level to identify optimal operating points
+
+This is useful for capacity planning and understanding how your model performs under various load conditions. Results include comprehensive metrics at each tested QPS level.
+
+### Offline Mode Batching Behavior
+
+In Offline mode, the `--batch-size` parameter controls query processing:
+
+- **Default (no value specified)**: All samples processed as a single batch for maximum throughput
+- **Custom value**: All queries are still received at once, but processed in smaller chunks:
+  - Queries divided into batches of specified size
+  - Multiple worker threads process these batches in parallel
+  - Each batch becomes a separate API call to the inference server
+
+This maintains MLPerf methodology (submitting all queries at the start) while allowing flexible processing.
 
 ## Additional Options
 
