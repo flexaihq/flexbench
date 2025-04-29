@@ -144,10 +144,10 @@ async def async_main() -> dict:
     # Save results to file
     results_path = runner.results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
-        json.dump(result, f)
+        json.dump(result, f, indent=2)
 
     log.info("Benchmark run completed")
-    log.info(f"Results saved to: {results_path}")
+    log.info(f"Results saved to: {results_path.absolute()}")
 
     return result
 
