@@ -74,6 +74,7 @@ class VLLMRunner(BaseRunner):
     """vLLM benchmark runner."""
 
     def __init__(self, config: BenchmarkConfig):
+        log.warning("vLLM runner is still in development. Expect bugs.")
         super().__init__(config)
         self.backend = VLLMBackend(config=config, results_dir=self.results_dir)
 
