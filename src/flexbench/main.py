@@ -1,6 +1,9 @@
 import argparse
 import asyncio
 import json
+import os
+import sys
+from pathlib import Path
 
 from flexbench.dataset.base import DatasetConfig
 from flexbench.runners.base import BenchmarkConfig
@@ -36,12 +39,28 @@ def get_args():
         required=True,
         help="MLPerf scenario (Offline or Server)",
     )
-    parser.add_argument(
+
+    # Target QPS configuration (either --target-qps or --sweep must be provided)
+    qps_group = parser.add_mutually_exclusive_group(required=True)
+    qps_group.add_argument(
         "--target-qps",
         type=float,
-        required=True,
         help="Target queries per second",
     )
+    qps_group.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Run sweep mode: first find max QPS, then sweep different QPS values",
+    )
+
+    # Add num_points parameter for sweep mode
+    parser.add_argument(
+        "--num-points",
+        type=int,
+        default=10,
+        help="Number of QPS points to test in sweep mode (default: 10)",
+    )
+
     parser.add_argument(
         "--dataset-path",
         required=True,
@@ -83,7 +102,7 @@ def get_args():
         help="Image column name (required for vision tasks)",
     )
     parser.add_argument(
-        "--tokenizer-path",
+        "--tokenizer-path-override",
         help="Custom tokenizer path if different from model",
     )
     parser.add_argument(
@@ -106,6 +125,10 @@ def get_args():
         default=1024,
         help="Maximum tokens to generate (default: 1024)",
     )
+    parser.add_argument(
+        "--output-dir",
+        help="Directory to store benchmark results",
+    )
     return parser.parse_args()
 
 
@@ -126,35 +149,63 @@ async def async_main() -> dict:
     benchmark_config = BenchmarkConfig(
         task=args.task,
         model_path=args.model_path,
-        tokenizer_path=args.tokenizer_path,
+        tokenizer_path_override=args.tokenizer_path_override,
         api_server=args.api_server,
         api_token=args.api_token,
         dataset_config=dataset_config,
         scenario=args.scenario,
         target_qps=args.target_qps,
+        sweep_mode=args.sweep,
+        num_sweep_points=args.num_points,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
         accuracy=args.accuracy,
         total_sample_count=args.total_sample_count,
+        output_dir=args.output_dir,  # Add the output_dir parameter
     )
 
     runner = create_benchmark_runner(args.backend, benchmark_config)
     result = await runner.run()
 
     # Save results to file
-    results_path = runner.results_dir / "benchmark_results.json"
+    # Use the specified output directory if provided
+    if args.output_dir:
+        results_dir = Path(args.output_dir)
+        results_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        results_dir = runner.results_dir
+
+    results_path = results_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
-        json.dump(result, f)
+        json.dump(result, f, indent=2)
 
     log.info("Benchmark run completed")
-    log.info(f"Results saved to: {results_path}")
+    log.info(f"Results saved to: {results_path.absolute()}")
+
+    # Update result with path for subprocesses to find
+    if isinstance(result, dict):
+        result["results_path"] = str(results_path.absolute())
 
     return result
 
 
 def main():
-    return asyncio.run(async_main())
+    try:
+        result = asyncio.run(async_main())
+        # For subprocess runs, print the path to help parent process find it
+        if isinstance(result, dict) and "results_path" in result:
+            log.info(f"Results saved to: {result['results_path']}")
+        return 0
+    except KeyboardInterrupt:
+        log.info("Benchmark interrupted by user")
+        return 130
+    except Exception as e:
+        log.error(f"Benchmark failed: {e}", exc_info=True)
+        # Make sure we print the error to stdout for parent process to see
+        if os.environ.get("LOG_LEVEL", "").upper() == "DEBUG":
+            log.error(f"ERROR: {e}", exc_info=True,  stack_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

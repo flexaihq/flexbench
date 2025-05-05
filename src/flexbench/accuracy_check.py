@@ -86,7 +86,7 @@ def run_accuracy_check(
     dtype: str = "int32",
 ) -> dict:
     """Run accuracy checking and return metrics."""
-    log.info("Starting accuracy evaluation")
+    log.info(f"Starting accuracy evaluation: {mlperf_accuracy_file=}")
 
     if isinstance(mlperf_accuracy_file, str):
         mlperf_accuracy_file = Path(mlperf_accuracy_file)
