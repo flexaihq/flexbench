@@ -182,9 +182,9 @@ class LoadGenBackend(BaseBackend):
                 first_token_txt,
                 add_special_tokens=False,
             )
-            self.submit_lg_response(first_token_id, query_id, first_token=True)
+            self.submit_response(first_token_id, query_id, first_token=True)
 
-    def submit_lg_response(
+    def submit_response(
         self, token_ids: list[int], query_id: int, first_token: bool = False
     ) -> None:
         """Submit token response to MLPerf loadgen."""
@@ -204,4 +204,4 @@ class LoadGenBackend(BaseBackend):
         token_ids = self.tokenizer.encode(text, add_special_tokens=False)
         if not token_ids and not is_first_token:
             log.warning(f"No output tokens generated for query {query_id}")
-        self.submit_lg_response(token_ids, query_id, first_token=is_first_token)
+        self.submit_response(token_ids, query_id, first_token=is_first_token)

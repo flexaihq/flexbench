@@ -194,19 +194,16 @@ def main():
         result = asyncio.run(async_main())
         # For subprocess runs, print the path to help parent process find it
         if isinstance(result, dict) and "results_path" in result:
-            print(f"Results saved to: {result['results_path']}")
+            log.info(f"Results saved to: {result['results_path']}")
         return 0
     except KeyboardInterrupt:
-        print("Benchmark interrupted by user")
+        log.info("Benchmark interrupted by user")
         return 130
     except Exception as e:
         log.error(f"Benchmark failed: {e}", exc_info=True)
         # Make sure we print the error to stdout for parent process to see
         if os.environ.get("LOG_LEVEL", "").upper() == "DEBUG":
-            import traceback
-
-            print(f"ERROR: {e}")
-            print(traceback.format_exc())
+            log.error(f"ERROR: {e}", exc_info=True,  stack_info=True)
         return 1
 
 
