@@ -8,7 +8,9 @@ from pathlib import Path
 import requests
 from transformers import AutoTokenizer
 
-from flexbench.dataset.factory import DatasetConfig, create_dataset
+from flexbench.dataset.base import DatasetConfig
+from flexbench.dataset.text import TextDataset
+from flexbench.dataset.vision import VisionDataset
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
@@ -88,12 +90,22 @@ class BaseBackend(ABC):
 
     def __init__(self, config: BenchmarkConfig):
         self.config = config
-        self.dataset = create_dataset(
-            config.task,
-            config.dataset_config,
-            model_path=config.model_path,
-            max_generated_tokens=config.max_generated_tokens,
-        )
+
+        if config.task == "text":
+            self.dataset = TextDataset(
+                dataset_config=config.dataset_config,
+                model_path=config.model_path,
+                max_generated_tokens=config.max_generated_tokens,
+            )
+        elif config.task == "vision":
+            self.dataset = VisionDataset(
+                dataset_config=config.dataset_config,
+                model_path=config.model_path,
+                max_generated_tokens=config.max_generated_tokens,
+            )
+        else:
+            raise ValueError(f"Unsupported task type: {config.task}")
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             config.tokenizer_path_override or config.model_path,
             use_fast=True,
