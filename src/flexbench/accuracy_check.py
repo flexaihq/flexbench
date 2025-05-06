@@ -11,7 +11,6 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from flexbench.dataset.base import DatasetConfig
-from flexbench.dataset.factory import create_dataset
 from flexbench.dataset.text import TextDataset
 from flexbench.utils import get_logger
 
@@ -99,11 +98,7 @@ def run_accuracy_check(
         f"input='{dataset_config.input_column}', output='{dataset_config.output_column}'"
     )
 
-    dataset: TextDataset = create_dataset(
-        task_type="text",
-        dataset_config=dataset_config,
-        model_path=model_path,
-    )
+    dataset = TextDataset(dataset_config=dataset_config, model_path=model_path)
 
     reference_data = dataset.get_references()
     log.info(f"Loaded {len(reference_data.references)} references")

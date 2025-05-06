@@ -168,6 +168,8 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 | `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with `--target-qps` and `--accuracy`). Automatically tests multiple QPS levels to discover performance limits and saturation points. |
 | `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
 | `--batch-size` | Batch size, for Offline mode only | Integer |
+| `--max-input-tokens` | Maximum number of tokens for input | Integer (longer inputs will be truncated) |
+| `--fixed-input-length` | Fixed input length flag | Flag to pad inputs to exactly `--max-input-tokens` length (padding on right side) |
 
 For more details on each parameter, use `python -m flexbench --help`.
 

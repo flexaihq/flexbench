@@ -8,7 +8,9 @@ from pathlib import Path
 import requests
 from transformers import AutoTokenizer
 
-from flexbench.dataset.factory import DatasetConfig, create_dataset
+from flexbench.dataset.base import DatasetConfig
+from flexbench.dataset.text import TextDataset
+from flexbench.dataset.vision import VisionDataset
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
@@ -18,7 +20,6 @@ log = get_logger(__name__)
 class BenchmarkConfig:
     """Configuration for MLPerf benchmark runs."""
 
-    # Required settings
     task: str
     model_path: str
     api_server: str
@@ -26,13 +27,14 @@ class BenchmarkConfig:
     scenario: tp.Literal["Offline", "Server"]
     target_qps: float | None = None
 
-    # Optional settings
     sweep_mode: bool = False
-    num_sweep_points: int = 10  # Default number of points to test in sweep mode
+    num_sweep_points: int = 10
     tokenizer_path_override: str | None = None
     api_token: str | None = None
     batch_size: int | None = None
     max_generated_tokens: int | None = None
+    max_input_tokens: int | None = None
+    fixed_input_length: bool = False
     accuracy: bool = False
     total_sample_count: int | None = None
     model_name: str = "llama2-70b"
@@ -69,7 +71,6 @@ class BaseRunner(ABC):
     def __init__(self, config: BenchmarkConfig):
         self.config = config
 
-        # Set default results directory with timestamp, or use provided output directory
         self.results_dir = (
             Path(config.output_dir)
             if config.output_dir
@@ -88,20 +89,31 @@ class BaseBackend(ABC):
 
     def __init__(self, config: BenchmarkConfig):
         self.config = config
-        self.dataset = create_dataset(
-            config.task,
-            config.dataset_config,
-            model_path=config.model_path,
-            max_generated_tokens=config.max_generated_tokens,
-        )
+
+        if config.task == "text":
+            self.dataset = TextDataset(
+                dataset_config=config.dataset_config,
+                model_path=config.model_path,
+                max_generated_tokens=config.max_generated_tokens,
+                max_input_tokens=config.max_input_tokens,
+                fixed_input_length=config.fixed_input_length,
+            )
+        elif config.task == "vision":
+            self.dataset = VisionDataset(
+                dataset_config=config.dataset_config,
+                model_path=config.model_path,
+                max_generated_tokens=config.max_generated_tokens,
+            )
+        else:
+            raise ValueError(f"Unsupported task type: {config.task}")
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             config.tokenizer_path_override or config.model_path,
             use_fast=True,
-            padding_side="left",
+            padding_side="right",
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # Common tracking
         self._active = False
         self.total_sample_count = config.total_sample_count or len(self.dataset)
         self.sample_counter = 0
@@ -134,36 +146,32 @@ class BaseBackend(ABC):
         if count == 1 or count % max(1, self.total_sample_count // 10) == 0:
             log.info(f"Progress: {count}/{self.total_sample_count} ({percent:.1f}%)")
 
-    def _create_api_payload(
-        self, inputs: str | dict | list, stream: bool = False
-    ) -> tuple[str, dict]:
-        """Create API payload for vLLM request."""
-        endpoint = f"{self.config.api_server}/v1/completions"
-        payload = {
-            "model": self.config.model_path,
-            "prompt": inputs,
-            "max_tokens": getattr(self, "max_tokens", 1024),
-            "temperature": 0,
-            "stream": stream,
-            "min_tokens": 1,
-        }
-        return endpoint, payload
-
     def _make_api_request(
         self, inputs: str | dict | list, stream: bool = False
     ) -> dict | requests.Response:
-        """Make API request with proper headers and error handling."""
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": (
-                f"Bearer {self.config.api_token}" if self.config.api_token else None
-            ),
-        }
-        endpoint, payload = self._create_api_payload(inputs, stream)
+        """Make API request to vLLM server with proper headers and error handling."""
 
         with requests.Session() as s:
             resp = s.post(
-                endpoint, headers=headers, json=payload, verify=False, stream=stream
+                url=f"{self.config.api_server}/v1/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": (
+                        f"Bearer {self.config.api_token}"
+                        if self.config.api_token
+                        else None
+                    ),
+                },
+                json={
+                    "model": self.config.model_path,
+                    "prompt": inputs,
+                    "max_tokens": getattr(self, "max_tokens", 1024),
+                    "temperature": 0,
+                    "stream": stream,
+                    "min_tokens": 1,
+                },
+                verify=False,
+                stream=stream,
             )
             resp.raise_for_status()
             return resp if stream else resp.json()
