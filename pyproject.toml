@@ -19,7 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 local = [
-    "vllm>=0.8.2",
+    "flashinfer-python>=0.2.2,<0.2.3",
+    "vllm>=0.8.5",
 ]
 
 [dependency-groups]
