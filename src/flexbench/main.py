@@ -126,6 +126,16 @@ def get_args():
         help="Maximum tokens to generate (default: 1024)",
     )
     parser.add_argument(
+        "--max-input-tokens",
+        type=int,
+        help="Maximum number of tokens for input. Longer inputs will be truncated.",
+    )
+    parser.add_argument(
+        "--fixed-input-length",
+        action="store_true",
+        help="Pad inputs to reach exactly max-input-tokens (padding on right side)",
+    )
+    parser.add_argument(
         "--output-dir",
         help="Directory to store benchmark results",
     )
@@ -159,6 +169,8 @@ async def async_main() -> dict:
         num_sweep_points=args.num_points,
         batch_size=args.batch_size,
         max_generated_tokens=args.max_generated_tokens,
+        max_input_tokens=args.max_input_tokens,
+        fixed_input_length=args.fixed_input_length,
         accuracy=args.accuracy,
         total_sample_count=args.total_sample_count,
         output_dir=args.output_dir,  # Add the output_dir parameter

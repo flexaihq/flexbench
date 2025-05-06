@@ -16,7 +16,7 @@ class DatasetConfig:
 
     path: str
     input_column: str
-    output_column: str | None = None  # Only required for accuracy
+    output_column: str | None = None
     system_prompt_column: str | None = None
     image_column: str | None = None
     split: str = "train"
@@ -47,13 +47,12 @@ class MLPerfDataset(ABC):
         self.raw_samples = []
         self.samples = []
 
-        if dataset_config.accuracy_mode and not dataset_config.output_column:
-            raise ValueError("output_column must be specified for accuracy evaluation")
-
         if dataset_config.path.endswith((".pkl.gz", ".pkl")):
-            self.load_from_pickle(dataset_config.path)
+            self._load_from_pickle(dataset_config.path)
         else:
-            self.load_from_huggingface(dataset_config.path, dataset_config.split)
+            self._load_from_huggingface(dataset_config.path, dataset_config.split)
+
+        self._format_samples()
 
         log.info(f"Loaded {len(self)} samples from {dataset_config.path}")
 
@@ -70,25 +69,34 @@ class MLPerfDataset(ABC):
         return [self.samples[i] for i in indices]
 
     @abstractmethod
-    def _format_sample(self, sample: dict) -> tp.Any:
-        """Format a raw sample into the desired format."""
+    def _format_samples_batch(self, samples: list[dict]) -> list[tp.Any]:
+        """Format multiple samples at once, with potential parallelization.
+
+        All dataset implementations must provide a batch formatting method.
+        This should handle all sample processing efficiently in batch.
+        """
         pass
 
-    def load_from_huggingface(self, dataset_path: str, split: str = "train") -> None:
-        """Load and format data from HuggingFace dataset."""
+    def _format_samples(self) -> None:
+        """Format all raw samples into processed samples."""
+        if not self.raw_samples:
+            log.warning("No raw samples to format")
+            return
+
+        log.info(f"Formatting {len(self.raw_samples)} samples")
+        self.samples = self._format_samples_batch(self.raw_samples)
+
+    def _load_from_huggingface(self, dataset_path: str, split: str = "train") -> None:
+        """Load raw data from HuggingFace dataset."""
         log.info(f"Loading dataset from HuggingFace: {dataset_path} ({split})")
         from datasets import load_dataset
 
         dataset = load_dataset(dataset_path, split=split)
         self.raw_samples = list(dataset)
-        self.samples = [
-            self._format_sample(sample)
-            for sample in tqdm(dataset, desc="Formatting samples")
-        ]
-        log.info(f"Loaded {len(self)} samples")
+        log.info(f"Loaded {len(self.raw_samples)} raw samples")
 
-    def load_from_pickle(self, filepath: str) -> None:
-        """Load preprocessed dataset from pickle file."""
+    def _load_from_pickle(self, filepath: str) -> None:
+        """Load raw data from pickle file."""
         if not Path(filepath).is_file():
             raise FileNotFoundError(f"Processed pickle file {filepath} not found.")
 
@@ -97,25 +105,17 @@ class MLPerfDataset(ABC):
 
         data = pd.read_pickle(filepath)
         self.raw_samples = data.to_dict("records")
-        self.samples = [
-            self._format_sample(row)
-            for _, row in tqdm(data.iterrows(), desc="Formatting samples")
-        ]
-        log.info(f"Loaded {len(self)} samples")
+        log.info(f"Loaded {len(self.raw_samples)} raw samples")
 
     def get_references(self) -> ReferenceData:
         """Get raw reference data for accuracy evaluation."""
-        if not self.config.accuracy_mode:
-            log.debug("Accuracy mode not enabled in dataset config")
-            return ReferenceData([], [], [])
-
-        if not self.raw_samples:
-            log.error("No raw samples found in dataset")
-            return ReferenceData([], [], [])
-
-        if not self.config.output_column:
-            log.error(
-                f"Output column '{self.config.output_column}' not found in dataset"
+        if (
+            not self.config.accuracy_mode
+            or not self.raw_samples
+            or not self.config.output_column
+        ):
+            log.debug(
+                "Cannot generate references: accuracy mode disabled or missing data"
             )
             return ReferenceData([], [], [])
 
