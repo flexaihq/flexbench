@@ -161,7 +161,7 @@ class TextDataset(MLPerfDataset):
                             [self.tokenizer.pad_token_id] * padding_size,
                             dtype=tokens.dtype,
                         )
-                        padded_ids = torch.cat([padding, tokens])
+                        padded_ids = torch.cat([tokens, padding])
                         processed_prompts.append(
                             self.tokenizer.decode(padded_ids, skip_special_tokens=False)
                         )
