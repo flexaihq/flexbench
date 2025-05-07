@@ -1,6 +1,6 @@
 # FlexBench
 
-A flexible benchmarking framework for language and vision models, with support for both MLPerf loadgen and vLLM backends.
+A flexible benchmarking framework for language and vision (WIP) models, with support for both MLPerf loadgen and vLLM backends.
 
 ## Features
 
@@ -97,7 +97,7 @@ FlexBench works with any HuggingFace model, with specialized chat templates for:
 
 #### Vision Tasks
 
-- Support for `philschmid/amazon-product-descriptions-vlm` (Beta)
+- Support for `philschmid/amazon-product-descriptions-vlm` (prototype, WIP)
 
 ## Usage
 
@@ -159,7 +159,7 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 
 | Parameter | Description | Available Options |
 |-----------|-------------|-------------------|
-| `--task` | Task type | `text`, `vision` |
+| `--task` | Task type | `text`, `vision` (WIP) |
 | `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
 | `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - *WIP*) |
 | `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. Not compatible with `--sweep`. |
@@ -202,7 +202,7 @@ For dataset configuration:
 - `--dataset-input-column`: Input text column (required)
 - `--dataset-output-column`: Reference text column (for accuracy mode)
 - `--dataset-system-prompt-column`: System prompt column (optional)
-- `--dataset-image-column`: Image column (for vision tasks)
+- `--dataset-image-column`: Image column (for vision tasks, WIP)
 
 For API configuration:
 
