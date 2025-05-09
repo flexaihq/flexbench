@@ -1,6 +1,6 @@
 # FlexBench
 
-A flexible benchmarking framework for language and vision (WIP) models, with support for both MLPerf loadgen and vLLM backends.
+A flexible benchmarking framework for language and vision models, with support for both MLPerf loadgen and vLLM backends.
 
 ## Features
 
@@ -97,7 +97,9 @@ FlexBench works with any HuggingFace model, with specialized chat templates for:
 
 #### Vision Tasks
 
-- Support for `philschmid/amazon-product-descriptions-vlm` (prototype, WIP)
+- Support for `philschmid/amazon-product-descriptions-vlm` (prototype, WIP\*)
+
+\* WIP: _Work in Progress_
 
 ## Usage
 
