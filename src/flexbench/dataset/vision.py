@@ -1,3 +1,7 @@
+"""
+DISCLAIMER: This vision task is still in development and not fully functional. Consider it an ongoing prototype.
+"""
+
 import base64
 from io import BytesIO
 from pathlib import Path
