@@ -206,10 +206,16 @@ For API configuration:
 
 ## Testing & Development
 
-Run tests with:
+Run a server on `localhost:8000` with:
 
 ```sh
-pytest . -v -s
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct --disable-log-requests --max-model-len=2048
+```
+
+Then run the tests with:
+
+```sh
+pytest -v -s
 ```
 
 ## Authors

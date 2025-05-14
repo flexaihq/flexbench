@@ -60,6 +60,10 @@ class BenchmarkConfig:
                 log.warning(
                     "SingleStream scenario ignores sweep_mode and target_qps; they will be ignored."
                 )
+            if self.accuracy:
+                raise ValueError(
+                    "Accuracy mode is not supported for SingleStream scenario."
+                )
 
         if self.sweep_mode and self.accuracy:
             raise ValueError(
