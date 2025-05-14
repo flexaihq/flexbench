@@ -22,4 +22,6 @@ TEST_CASES = {
     "loadgen-server-accuracy": ("loadgen", "Server", True),
     "vllm-offline-perf": ("vllm", "Offline", False),
     "vllm-server-perf": ("vllm", "Server", False),
+    "loadgen-singlestream-perf": ("loadgen", "SingleStream", False),
+    "loadgen-singlestream-accuracy": ("loadgen", "SingleStream", True),
 }

@@ -410,6 +410,11 @@ class LoadGenRunner(BaseRunner):
             test_settings.offline_expected_qps = config.target_qps
         elif config.scenario == "Server":
             test_settings.server_target_qps = config.target_qps
+        elif config.scenario == "SingleStream":
+            log.warning(
+                "SingleStream scenario does not support target_qps. "
+                "Using default settings."
+            )
 
         return test_settings
 

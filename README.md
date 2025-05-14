@@ -31,21 +31,14 @@ flowchart LR
 
 ## Inference Modes
 
-FlexBench supports two primary inference modes based on MLPerf standards:
+FlexBench supports multiple inference modes based on MLPerf standards:
 
-### Server Mode (Streaming)
-
-In Server mode, queries arrive at the system following a Poisson distribution, mimicking real-world request patterns:
-
-![Server Mode Query Pattern](./assets/server_mode_chart.png)
-
-### Offline Mode (Batched)
-
-In Offline mode, all queries are sent to the system at once, maximizing throughput:
-
-![Offline Mode Query Pattern](./assets/offline_mode_chart.png)
-
-### MLPerf Inference Benchmark
+| Mode           | Description                                                                 | Load Generation                                                                       | Use Case                        |
+|----------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------|
+| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img src="./assets/server.png" alt="Server Mode" width="200"/>             | Online serving, latency testing  |
+| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img src="./assets/offline.png" alt="Offline Mode" width="200"/>           | Throughput benchmarking          |
+| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" alt="SingleStream Mode" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
+<!-- Add new modes here as needed -->
 
 For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
 
@@ -163,7 +156,7 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 |-----------|-------------|-------------------|
 | `--task` | Task type | `text`, `vision` (WIP) |
 | `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
-| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - *WIP*) |
+| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - _WIP_) |
 | `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. Not compatible with `--sweep`. |
 | `--dataset-output-column` | Reference text column (for accuracy mode) | String |
 | `--target-qps` | Target query rate to achieve | Float |
