@@ -4,31 +4,18 @@ Test cases for FlexBench benchmarking framework.
 Usage:
     python -m pytest
 
-The tests automatically:
-1. Start a vLLM server with the test model
-2. Run all test cases
-3. Shut down the server when done
-
-Example manual test:
-    python -m flexbench \
-        --task text \
-        --model-path HuggingFaceH4/smol_llama_2_135m \
-        --api-server http://localhost:8000 \
-        --scenario Server \
-        --target-qps 1 \
-        --dataset-path ctuning/MLPerf-OpenOrca \
-        --dataset-input-column question \
-        --total-sample-count 10
+These tests assume a vLLM server is already running and accessible at http://localhost:8000,
+with HuggingFaceTB/SmolLM2-135M-Instruct model loaded.
 """
 
 import json
 import subprocess
 import sys
+import requests
 
 import pytest
 
 from flexbench.tests.configs import BASE_CONFIG, TEST_CASES
-from flexbench.tests.server import check_server_health, start_server, stop_server
 
 
 def run_benchmark_subprocess(config: dict) -> dict:
@@ -81,22 +68,22 @@ def run_benchmark_subprocess(config: dict) -> dict:
         return results
 
 
-@pytest.fixture(scope="session", autouse=True)
-def vllm_server():
-    """Start vLLM server for all tests."""
-    server_info = start_server()
-    # Check server health before proceeding
-    assert check_server_health(), "vLLM server failed health check"
-    yield server_info
-    stop_server(server_info)
+def test_vllm_health():
+    """Check if the vLLM server /health endpoint is healthy (HTTP 200)."""
+    url = f"{BASE_CONFIG['api_server']}/health"
+    try:
+        resp = requests.get(url, timeout=5)
+        assert resp.status_code == 200, f"Health check failed: {resp.status_code} {resp.text}"
+    except Exception as e:
+        pytest.fail(f"Could not connect to vLLM server health endpoint: {e}")
 
 
 @pytest.mark.parametrize(
-    "backend,scenario,accuracy",
+    "backend,scenario,accuracy,extra_config",
     TEST_CASES.values(),
     ids=TEST_CASES.keys(),
 )
-def test_benchmark(backend, scenario, accuracy, request):
+def test_benchmark(backend, scenario, accuracy, extra_config, request):
     """Test benchmark scenarios."""
     test_case_key = request.node.name.split("[")[-1].split("]")[0]
     print(
@@ -112,8 +99,7 @@ def test_benchmark(backend, scenario, accuracy, request):
             "accuracy": accuracy,
         }
     )
-    if scenario == "Server":
-        config["batch_size"] = None
+    config.update(extra_config)
 
     # Run benchmark
     result = run_benchmark_subprocess(config)
@@ -125,8 +111,9 @@ def test_benchmark(backend, scenario, accuracy, request):
 
     # Validate mode-specific metrics
     if not accuracy:
-        assert result.get("samples_per_second", 0) > 0
-        assert result.get("tokens_per_second", 0) > 0
+        if scenario != "SingleStream":
+            assert result.get("samples_per_second", 0) > 0
+            assert result.get("tokens_per_second", 0) > 0
         assert result.get("completed", 0) > 0
         if scenario == "Server":
             assert result.get("p90_latency_ns", 0) > 0

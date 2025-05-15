@@ -24,6 +24,14 @@ class LoadGenBackend(BaseBackend):
         super().__init__(config)
         self.results_dir = results_dir
         self.task_type = config.task
+        self.scenario = config.scenario
+
+        if self.scenario == "SingleStream":
+            self.batch_size = config.batch_size or 1
+        elif self.scenario == "Offline":
+            self.batch_size = config.batch_size or self.total_sample_count
+        elif self.scenario == "Server":
+            self.batch_size = config.batch_size
 
         self.qsl = lg.ConstructQSL(
             self.total_sample_count,
@@ -31,32 +39,35 @@ class LoadGenBackend(BaseBackend):
             self.dataset.LoadSamplesToRam,
             self.dataset.UnloadSamplesFromRam,
         )
+        log.info(f"Constructed QSL with {self.total_sample_count} samples")
         self.sut = lg.ConstructSUT(self.issue_queries, self.flush_queries)
+        log.info("Constructed SUT")
 
-        # Initialize scenario
-        self.is_server_scenario = config.scenario == "Server"
-        if self.is_server_scenario:
+        if self.scenario == "Server":
             self.first_token_queue = queue.Queue()
             self.ft_resp_thread = None
-        else:
-            self.batch_size = config.batch_size or self.total_sample_count
+        elif self.scenario == "Offline":
             self.worker_threads: list[threading.Thread] = []
             self.query_queue = queue.Queue()
+        elif self.scenario == "SingleStream":
+            pass
 
     def start(self):
         """Start the backend based on scenario type."""
         super().start()
-        if self.is_server_scenario:
+        if self.scenario == "Server":
             self._start_server_scenario()
-        else:
+        elif self.scenario == "Offline":
             self._start_offline_scenario()
 
     def stop(self):
         """Stop the backend and clean up resources."""
-        if self.is_server_scenario:
+        if self.scenario == "Server":
             self._stop_server_scenario()
-        else:
+        elif self.scenario == "Offline":
             self._stop_offline_scenario()
+        elif self.scenario == "SingleStream":
+            pass
 
         if self.sut:
             lg.DestroySUT(self.sut)
@@ -69,10 +80,14 @@ class LoadGenBackend(BaseBackend):
 
     def issue_queries(self, query_samples: list[lg.QuerySample]) -> None:
         """Issue queries according to the chosen scenario."""
-        if self.is_server_scenario:
+        if self.scenario == "Server":
             self._issue_server_queries(query_samples)
-        else:
+        elif self.scenario == "Offline":
             self._issue_offline_queries(query_samples)
+        elif self.scenario == "SingleStream":
+            self._issue_singlestream_queries(query_samples)
+        else:
+            raise NotImplementedError(f"Scenario '{self.scenario}' not implemented.")
 
     def flush_queries(self):
         """Flush any pending queries."""
@@ -205,3 +220,21 @@ class LoadGenBackend(BaseBackend):
         if not token_ids and not is_first_token:
             log.warning(f"No output tokens generated for query {query_id}")
         self.submit_response(token_ids, query_id, first_token=is_first_token)
+
+    def _issue_singlestream_queries(self, query_samples: list[lg.QuerySample]) -> None:
+        """Process queries in batches for SingleStream scenario."""
+        for i in range(0, len(query_samples), self.batch_size):
+            batch = query_samples[i : i + self.batch_size]
+            inputs = [self.dataset.get_sample(q.index) for q in batch]
+            if self.batch_size == 1:
+                response = self._make_api_request(inputs[0], stream=False)
+                output_text = self._process_response(response)
+                self.process_completion(output_text, batch[0].id)
+                self._update_counter()
+            else:
+                response = self._make_api_request(inputs, stream=False)
+                outputs = response["choices"]
+                for j, output in enumerate(outputs):
+                    output_text = output["text"]
+                    self.process_completion(output_text, batch[j].id)
+                    self._update_counter()

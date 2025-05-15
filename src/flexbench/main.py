@@ -35,19 +35,18 @@ def get_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["Offline", "Server"],
+        choices=["Offline", "Server", "SingleStream"],
         required=True,
-        help="MLPerf scenario (Offline or Server)",
+        help="MLPerf scenario (Offline, Server, or SingleStream)",
     )
 
-    # Target QPS configuration (either --target-qps or --sweep must be provided)
-    qps_group = parser.add_mutually_exclusive_group(required=True)
-    qps_group.add_argument(
+    # Target QPS configuration (not required for SingleStream)
+    parser.add_argument(
         "--target-qps",
         type=float,
         help="Target queries per second",
     )
-    qps_group.add_argument(
+    parser.add_argument(
         "--sweep",
         action="store_true",
         help="Run sweep mode: first find max QPS, then sweep different QPS values",
@@ -139,7 +138,10 @@ def get_args():
         "--output-dir",
         help="Directory to store benchmark results",
     )
-    return parser.parse_args()
+
+    args = parser.parse_args()
+
+    return args
 
 
 async def async_main() -> dict:
@@ -215,7 +217,7 @@ def main():
         log.error(f"Benchmark failed: {e}", exc_info=True)
         # Make sure we print the error to stdout for parent process to see
         if os.environ.get("LOG_LEVEL", "").upper() == "DEBUG":
-            log.error(f"ERROR: {e}", exc_info=True,  stack_info=True)
+            log.error(f"ERROR: {e}", exc_info=True, stack_info=True)
         return 1
 
 

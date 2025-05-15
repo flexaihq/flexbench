@@ -24,7 +24,7 @@ class BenchmarkConfig:
     model_path: str
     api_server: str
     dataset_config: DatasetConfig
-    scenario: tp.Literal["Offline", "Server"]
+    scenario: tp.Literal["Offline", "Server", "SingleStream"]
     target_qps: float | None = None
 
     sweep_mode: bool = False
@@ -44,24 +44,30 @@ class BenchmarkConfig:
     output_dir: str | None = None
 
     def __post_init__(self):
-        if not self.sweep_mode and self.target_qps is None:
-            raise ValueError(
-                "Either sweep_mode must be True or target_qps must be specified"
-            )
-
-        if self.sweep_mode and self.target_qps is not None:
-            raise ValueError(
-                f"Cannot specify both sweep_mode={self.sweep_mode} "
-                f"and target_qps={self.target_qps}"
-            )
-
-        if self.scenario == "Server" and self.batch_size is not None:
-            raise ValueError("Batch size is not applicable for Server scenario")
+        if self.scenario in ("Offline", "Server"):
+            if not self.sweep_mode and self.target_qps is None:
+                raise ValueError(
+                    "Either sweep_mode must be True or target_qps must be specified for Offline/Server scenarios"
+                )
+            if self.sweep_mode and self.target_qps is not None:
+                raise ValueError(
+                    f"Cannot specify both sweep_mode={self.sweep_mode} and target_qps={self.target_qps} for Offline/Server scenarios"
+                )
+            if self.scenario == "Server" and self.batch_size is not None:
+                raise ValueError("Batch size is not applicable for Server scenario")
+        elif self.scenario == "SingleStream":
+            if self.sweep_mode or self.target_qps is not None:
+                log.warning(
+                    "SingleStream scenario ignores sweep_mode and target_qps; they will be ignored."
+                )
+            if self.accuracy:
+                raise ValueError(
+                    "Accuracy mode is not supported for SingleStream scenario."
+                )
 
         if self.sweep_mode and self.accuracy:
             raise ValueError(
-                "Sweep mode is not compatible with accuracy testing. "
-                "Use --target-qps for accuracy mode."
+                "Sweep mode is not compatible with accuracy testing. Use --target-qps for accuracy mode."
             )
 
 
