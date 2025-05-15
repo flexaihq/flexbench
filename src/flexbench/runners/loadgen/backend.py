@@ -59,6 +59,8 @@ class LoadGenBackend(BaseBackend):
             self._start_server_scenario()
         elif self.scenario == "Offline":
             self._start_offline_scenario()
+        elif self.scenario == "SingleStream":
+            pass
 
     def stop(self):
         """Stop the backend and clean up resources."""
@@ -93,70 +95,10 @@ class LoadGenBackend(BaseBackend):
         """Flush any pending queries."""
         pass
 
-    def _start_offline_scenario(self) -> None:
-        """Start worker threads for offline batch processing."""
-        log.info("Starting SUT offline mode processing threads")
-        num_workers = os.cpu_count()
-        for _ in range(num_workers):
-            worker = threading.Thread(target=self._process_offline_queries)
-            worker.start()
-            self.worker_threads.append(worker)
+    # --- Shared helpers ---
 
-    def _stop_offline_scenario(self) -> None:
-        """Stop all offline worker threads."""
-        log.info("Stopping offline processing threads")
-        for _ in range(len(self.worker_threads)):
-            self.query_queue.put(None)
-        for thread in self.worker_threads:
-            if thread and thread.is_alive():
-                thread.join()
-
-    def _issue_offline_queries(self, query_samples: list[lg.QuerySample]) -> None:
-        """Process query samples in batches using worker threads."""
-        if not self.worker_threads:
-            self._start_offline_scenario()
-
-        for i in range(0, len(query_samples), self.batch_size):
-            batch = query_samples[i : i + self.batch_size]
-            self.query_queue.put(batch)
-
-    def _process_offline_queries(self) -> None:
-        """Worker thread function to process batches from queue."""
-        while True:
-            batch = self.query_queue.get()
-            if batch is None:
-                break
-
-            log.debug(f"Processing batch of {len(batch)} queries")
-            inputs = [self.dataset.get_sample(q.index) for q in batch]
-            response = self._make_api_request(inputs, stream=False)
-            outputs = response["choices"]
-
-            for i, output in enumerate(outputs):
-                output_text = output["text"]
-                self.process_completion(output_text, batch[i].id)
-                self._update_counter()
-
-    def _start_server_scenario(self) -> None:
-        """Start first token processing thread for server mode."""
-        log.info("Starting SUT server mode processing thread")
-        self.ft_resp_thread = threading.Thread(target=self._process_first_tokens)
-        self.ft_resp_thread.start()
-
-    def _stop_server_scenario(self) -> None:
-        """Stop first token processing thread."""
-        if hasattr(self, "ft_resp_thread") and self.ft_resp_thread:
-            self.first_token_queue.put(None)
-            self.ft_resp_thread.join()
-
-    def _issue_server_queries(self, query_samples: list[lg.QuerySample]) -> None:
-        """Process server queries individually in separate threads."""
-        for sample in query_samples:
-            threading.Thread(target=self._process_server_query, args=(sample,)).start()
-
-    def _process_server_query(self, query_sample: lg.QuerySample) -> None:
-        """Process a single server query with streaming response."""
-        input_data = self.dataset.get_sample(query_sample.index)
+    def _handle_streaming_response(self, query_sample, input_data):
+        """Shared streaming response logic for Server and SingleStream."""
         response = self._make_api_request(input_data, stream=True)
         text_cache = ""
         first_token_sent = False
@@ -164,27 +106,31 @@ class LoadGenBackend(BaseBackend):
         for line in response.iter_lines():
             if not line or b"[DONE]" in line:
                 continue
-
             decoded = line.decode()
             if not decoded.startswith("data"):
                 continue
-
             token_data = json.loads(decoded[6:])
             token_text = self._process_response(token_data, streaming=True)
-
             if not token_text:
                 continue
-
             if not first_token_sent:
                 self.process_completion(
                     token_text, query_sample.id, is_first_token=True
                 )
                 first_token_sent = True
-
             text_cache += token_text
 
         self.process_completion(text_cache, query_sample.id)
         self._update_counter()
+
+    def _handle_batch_response(self, batch, inputs):
+        """Shared batch response logic for Offline and SingleStream (non-stream)."""
+        response = self._make_api_request(inputs, stream=False)
+        outputs = response["choices"]
+        for i, output in enumerate(outputs):
+            output_text = output["text"]
+            self.process_completion(output_text, batch[i].id)
+            self._update_counter()
 
     def _process_first_tokens(self) -> None:
         """Process and submit first tokens from streaming responses."""
@@ -221,20 +167,72 @@ class LoadGenBackend(BaseBackend):
             log.warning(f"No output tokens generated for query {query_id}")
         self.submit_response(token_ids, query_id, first_token=is_first_token)
 
+    # --- Scenario-specific methods ---
+
+    def _start_offline_scenario(self) -> None:
+        """Start worker threads for offline batch processing."""
+        log.info("Starting SUT offline mode processing threads")
+        num_workers = os.cpu_count()
+        for _ in range(num_workers):
+            worker = threading.Thread(target=self._process_offline_queries)
+            worker.start()
+            self.worker_threads.append(worker)
+
+    def _stop_offline_scenario(self) -> None:
+        """Stop all offline worker threads."""
+        log.info("Stopping offline processing threads")
+        for _ in range(len(self.worker_threads)):
+            self.query_queue.put(None)
+        for thread in self.worker_threads:
+            if thread and thread.is_alive():
+                thread.join()
+
+    def _issue_offline_queries(self, query_samples: list[lg.QuerySample]) -> None:
+        """Process query samples in batches using worker threads."""
+        if not self.worker_threads:
+            self._start_offline_scenario()
+        for i in range(0, len(query_samples), self.batch_size):
+            batch = query_samples[i : i + self.batch_size]
+            self.query_queue.put(batch)
+
+    def _process_offline_queries(self) -> None:
+        """Worker thread function to process batches from queue."""
+        while True:
+            batch = self.query_queue.get()
+            if batch is None:
+                break
+            log.debug(f"Processing batch of {len(batch)} queries")
+            inputs = [self.dataset.get_sample(q.index) for q in batch]
+            self._handle_batch_response(batch, inputs)
+
+    def _start_server_scenario(self) -> None:
+        """Start first token processing thread for server mode."""
+        log.info("Starting SUT server mode processing thread")
+        self.ft_resp_thread = threading.Thread(target=self._process_first_tokens)
+        self.ft_resp_thread.start()
+
+    def _stop_server_scenario(self) -> None:
+        """Stop first token processing thread."""
+        if hasattr(self, "ft_resp_thread") and self.ft_resp_thread:
+            self.first_token_queue.put(None)
+            self.ft_resp_thread.join()
+
+    def _issue_server_queries(self, query_samples: list[lg.QuerySample]) -> None:
+        """Process server queries individually in separate threads."""
+        for sample in query_samples:
+            threading.Thread(
+                target=self._handle_streaming_response,
+                args=(sample, self.dataset.get_sample(sample.index)),
+            ).start()
+
     def _issue_singlestream_queries(self, query_samples: list[lg.QuerySample]) -> None:
         """Process queries in batches for SingleStream scenario."""
         for i in range(0, len(query_samples), self.batch_size):
             batch = query_samples[i : i + self.batch_size]
-            inputs = [self.dataset.get_sample(q.index) for q in batch]
-            if self.batch_size == 1:
-                response = self._make_api_request(inputs[0], stream=False)
-                output_text = self._process_response(response)
-                self.process_completion(output_text, batch[0].id)
-                self._update_counter()
-            else:
-                response = self._make_api_request(inputs, stream=False)
-                outputs = response["choices"]
-                for j, output in enumerate(outputs):
-                    output_text = output["text"]
-                    self.process_completion(output_text, batch[j].id)
-                    self._update_counter()
+            for sample in batch:
+                self._process_singlestream_query(sample)
+
+    def _process_singlestream_query(self, query_sample: lg.QuerySample) -> None:
+        """Process a single SingleStream query and submit first/full token responses."""
+        input_data = self.dataset.get_sample(query_sample.index)
+        self._handle_streaming_response(query_sample, input_data)
