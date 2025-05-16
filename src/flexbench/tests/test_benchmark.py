@@ -21,7 +21,7 @@ from flexbench.tests.configs import BASE_CONFIG, TEST_CASES
 def run_benchmark_subprocess(config: dict) -> dict:
     """Run benchmark through subprocess and return parsed results."""
     # Basic command setup
-    cmd = [sys.executable, "-m", "flexbench.main"]
+    cmd = [sys.executable, "-m", "flexbench"]
 
     # Convert all config items to CLI arguments
     for key, value in config.items():
