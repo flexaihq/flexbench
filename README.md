@@ -29,15 +29,15 @@ flowchart LR
 
 **Important:** The vLLM server and FlexBench client run in separate terminals. You must start the vLLM server first, then run FlexBench in another terminal.
 
-## Inference Modes
+## Inference Scenarios
 
-FlexBench supports multiple inference modes based on MLPerf standards:
+FlexBench supports multiple inference scenarios based on MLPerf standards:
 
-| Mode           | Description                                                                 | Load Generation                                                                       | Use Case                        |
+| Scenario       | Description                                                                 | Load Generation                                                                       | Use Case                        |
 |----------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------|
-| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img src="./assets/server.png" alt="Server Mode" width="200"/>             | Online serving, latency testing  |
-| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img src="./assets/offline.png" alt="Offline Mode" width="200"/>           | Throughput benchmarking          |
-| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" alt="SingleStream Mode" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
+| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img src="./assets/server.png" width="200"/>             | Online serving, latency testing  |
+| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img src="./assets/offline.png" width="200"/>           | Throughput benchmarking          |
+| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
 <!-- Add new modes here as needed -->
 
 For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
@@ -155,7 +155,7 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 | Parameter | Description | Available Options |
 |-----------|-------------|-------------------|
 | `--task` | Task type | `text`, `vision` (WIP) |
-| `--scenario` | MLPerf scenario | `Server` (streaming), `Offline` (batched) |
+| `--scenario` | MLPerf scenario | `Server`, `Offline`, `SingleStream` |
 | `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - _WIP_) |
 | `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. Not compatible with `--sweep`. |
 | `--dataset-output-column` | Reference text column (for accuracy mode) | String |
@@ -164,7 +164,7 @@ Note: use `LOG_LEVEL=DEBUG` env variable to enable debug logging.
 | `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
 | `--batch-size` | Batch size, for Offline mode only | Integer |
 | `--max-input-tokens` | Maximum number of tokens for input | Integer (longer inputs will be truncated) |
-| `--fixed-input-length` | Fixed input length flag | Flag to pad inputs to exactly `--max-input-tokens` length (padding on right side) |
+| `--fixed-input-length` | Fixed input length flag | Flag to pad inputs to exactly `--max-input-tokens` length |
 
 For more details on each parameter, use `python -m flexbench --help`.
 
