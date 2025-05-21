@@ -218,6 +218,14 @@ Then run the tests with:
 pytest -v -s
 ```
 
+## Using MLCommons CMX automation language
+
+We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/run-mlperf-inference-benchmark) 
+to help users prepare, validate, and submit official MLPerf inference results using FlexBench.
+These automations are based on our [MLPerf inference v5.0 submission](https://github.com/mlcommons/inference_results_v5.0/tree/main/open/FlexAI/measurements/cmx-flexbench-cuda-1xH100-vllm-0.7.3-pytorch-2.5.1-huggingface-16d94432c8704c14/DeepSeek-R1-Distill-Llama-8B/Server),
+featuring DeepSeek-R1-Distill-Llama-8B and vLLM.
+
+
 ## Authors
 
-Daniel Altunay and Grigori Fursin (FCS Labs)
+Daniel Altunay and Grigori Fursin (FCS Labs, FlexAI)
