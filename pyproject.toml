@@ -1,9 +1,19 @@
 [project]
 name = "FlexBench"
+
 version = "0.1.0"
+
 description = "FlexAI Universal Benchmarking"
+
 readme = "README.md"
+
 requires-python = ">=3.12"
+
+authors = [
+    {name = "Daniel Altunay"},
+    {name = "Grigori Fursin"},
+]
+
 dependencies = [
     "anyio>=4.9.0",
     "cmind>=4.2.0",
@@ -26,3 +36,10 @@ local = [
 
 [dependency-groups]
 dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]
+
+license = {text = "Apache 2.0"}
+
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+]
