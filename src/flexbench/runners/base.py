@@ -30,6 +30,7 @@ class BenchmarkConfig:
     sweep_mode: bool = False
     num_sweep_points: int = 10
     tokenizer_path_override: str | None = None
+    remote_model_path: str | None = None
     api_token: str | None = None
     batch_size: int | None = None
     max_generated_tokens: int | None = None
@@ -69,6 +70,8 @@ class BenchmarkConfig:
             raise ValueError(
                 "Sweep mode is not compatible with accuracy testing. Use --target-qps for accuracy mode."
             )
+        if self.remote_model_path is None:
+            self.remote_model_path = self.model_path
 
 
 class BaseRunner(ABC):
@@ -169,7 +172,7 @@ class BaseBackend(ABC):
                     ),
                 },
                 json={
-                    "model": self.config.model_path,
+                    "model": self.config.remote_model_path,
                     "prompt": inputs,
                     "max_tokens": getattr(self, "max_tokens", 1024),
                     "temperature": 0,
