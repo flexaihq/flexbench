@@ -10,7 +10,7 @@ cd OpenMLPerf-dataset
 python -m venv .venv
 
 # Activate the virtual environment
-source .venv/bin/activate  # On Windows use `venv\Scripts\activate`
+source .venv/bin/activate
 
 # Install the required packages
 pip install -r requirements.txt
