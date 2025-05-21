@@ -571,7 +571,7 @@ def log_missing_values() -> None:
 
 
 def upload_to_huggingface_hub(
-    df: pl.DataFrame, dataset_name: str = "OpenMLPerf"
+    df: pl.DataFrame, dataset_name: str = "OpenMLPerf", private: bool = True
 ) -> None:
     """Upload the processed dataset to HuggingFace Hub."""
     logger.info(f"Preparing dataset '{dataset_name}' for upload to HuggingFace Hub")
@@ -579,7 +579,7 @@ def upload_to_huggingface_hub(
     dataset = Dataset.from_dict(data_dict)
 
     try:
-        dataset.push_to_hub(dataset_name, private=True)
+        dataset.push_to_hub(dataset_name, private=private)
         logger.info(
             f"Successfully uploaded dataset to HuggingFace Hub as '{dataset_name}'"
         )
@@ -661,6 +661,8 @@ def main(
     base_path: str = "semi-raw-mlperf-data",
     upload_to_hub: bool = False,
     dataset_name: str = "OpenMLPerf",
+    push_to_hub: bool = True,
+    private: bool = True,
 ):
     """Run the complete data processing pipeline."""
     logging.basicConfig(level=logging.INFO)
@@ -668,10 +670,10 @@ def main(
     export_data(df)
 
     if upload_to_hub:
-        upload_to_huggingface_hub(df, dataset_name)
+        upload_to_huggingface_hub(df, dataset_name, private)
 
     return df
 
 
 if __name__ == "__main__":
-    main(upload_to_hub=False)
+    main(upload_to_hub=False, private=True)
