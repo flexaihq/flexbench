@@ -35,6 +35,14 @@ This project is licensed under the [Apache License 2.0](LICENSE.md).
 
 © 2025 FlexAI
 
+Portions of the data were adapted from the following MLCommons repositories, 
+which are also licensed under the Apache 2.0 license:
+
+* [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
+* [mlcommons@inference_results_v4.1](https://github.com/mlcommons/inference_results_v4.1)
+* [mlcommons@inference_results_v4.0](https://github.com/mlcommons/inference_results_v4.0)
+* [mlcommons@inference_results_v3.1](https://github.com/mlcommons/inference_results_v3.1)
+
 ## Authors and maintaners
 
 [Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
