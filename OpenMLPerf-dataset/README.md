@@ -1,10 +1,16 @@
+---
+license: apache-2.0
+---
+
 # Preparing OpenMLPerf dataset
 
 To process the semi-raw MLPerf data into the OpenMLPerf dataset, run the following command:
 
 ```bash
-# Go to the OpenMLPerf-dataset directory
-cd OpenMLPerf-dataset
+# Untar raw files
+
+bzip2 -d semi-raw-mlperf-data.tar.bz2
+tar xvf semi-raw-mlperf-data.tar
 
 # Create a virtual environment
 python -m venv .venv
