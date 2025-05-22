@@ -28,3 +28,21 @@ We preprocess official raw MLPerf data, such as [inference v5.0](https://github.
 into semi-raw format compatible with the `process.py` script, using the [MLCommons CM/CMX automation framework](https://arxiv.org/abs/2406.16791).
 This is done using through the ["import mlperf results"](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/import-mlperf-results) 
 automation action, which we plan to document in more detail soon.
+
+# License and Copyright
+
+This project is licensed under the [Apache License 2.0](LICENSE.md).
+
+© 2025 FlexAI
+
+Portions of the data were adapted from the following MLCommons repositories, 
+which are also licensed under the Apache 2.0 license:
+
+* [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
+* [mlcommons@inference_results_v4.1](https://github.com/mlcommons/inference_results_v4.1)
+* [mlcommons@inference_results_v4.0](https://github.com/mlcommons/inference_results_v4.0)
+* [mlcommons@inference_results_v3.1](https://github.com/mlcommons/inference_results_v3.1)
+
+# Authors and maintaners
+
+[Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
