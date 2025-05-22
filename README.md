@@ -46,30 +46,46 @@ For more details on the MLPerf Inference Benchmark and the design of modes and m
 
 ### Installation
 
-Using uv (recommended, more stable):
+You can install FlexBench either by cloning the repository for local development, or directly from GitHub using pip or uv.
+
+#### Option 1: Clone and Install Locally
 
 ```sh
-# Optional: install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Clone the repository
+git clone https://github.com/flexaihq/flexbench.git
+cd flexbench
+```
 
-# Setup environment
-uv sync
+Then, create a virtual environment:
+
+```sh
+# Using uv (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Optional: install uv
+uv venv .venv
 source .venv/bin/activate
+
+# Or using standard venv
+python -m venv .venv
+source .venv/bin/activate
+```
+
+> Note: if not using `uv`, replace `uv pip` with `pip` in the commands below.
+
+Install the required dependencies:
+
+```sh
 uv pip install -e .              # Basic installation for remote endpoints
 # uv pip install -e ".[local]"   # For local model inference deployment
 ```
 
-Using standard venv:
+The `[local]` option installs additional dependencies required for local model inference with vLLM.
+
+#### Option 2: Install Directly from GitHub
 
 ```sh
-# Setup environment
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .                 # Basic installation for remote endpoints
-# pip install -e ".[local]"      # For local model inference deployment
+uv pip install git+https://github.com/flexaihq/flexbench.git             # Basic installation for remote endpoints
+# uv pip install "git+https://github.com/flexaihq/flexbench.git[local]"  # For local model inference deployment
 ```
-
-The `[local]` option installs additional dependencies required for local model inference with vLLM.
 
 ## Model & Dataset Support
 
