@@ -1,0 +1,10 @@
+datasets
+gradio
+nbformat
+numpy
+pandas
+plotly
+polars
+pyarrow
+scikit-learn
+xgboost

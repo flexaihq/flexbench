@@ -76,28 +76,6 @@ def get_feature_type(feature_name: str) -> str:
     return "categorical"
 
 
-def get_features_by_type(feature_type: str) -> list[str]:
-    """Get all features of a specific type."""
-    result = []
-    for group in FEATURES.values():
-        for feature, typ in group.items():
-            if typ == feature_type:
-                result.append(feature)
-    return result
-
-
-FEATURE_TYPES = {
-    "continuous": get_features_by_type("continuous"),
-    "categorical": get_features_by_type("categorical"),
-    "boolean": get_features_by_type("boolean"),
-    "text": get_features_by_type("text"),
-}
-
-UI_FEATURE_GROUPS = {
-    group: list(features.keys()) for group, features in FEATURES.items()
-}
-
-
 def find_result_files(base_path: str = "semi-raw-mlperf-data") -> list[str]:
     """Find all cmx-result-summary.json files."""
     return glob.glob(
@@ -622,39 +600,6 @@ def export_data(df: pl.DataFrame) -> None:
         logger.info("Exported data to data.json")
     df.write_parquet("data.parquet")
     logger.info("Exported data to data.parquet")
-
-
-def load_data(file_path: str | None = None) -> pl.DataFrame:
-    """Load processed benchmark data."""
-    if file_path is None:
-        file_path = "data.json"
-        if not os.path.exists(file_path):
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            potential_path = os.path.join(script_dir, "data.json")
-            if os.path.exists(potential_path):
-                file_path = potential_path
-
-    logger.info(f"Loading processed data from {file_path}")
-
-    try:
-        with open(file_path, "r") as f:
-            data = json.load(f)
-
-        for item in data:
-            for key, value in item.items():
-                if isinstance(value, str):
-                    if value.isdigit():
-                        item[key] = int(value)
-                    elif value.replace(".", "", 1).isdigit():
-                        item[key] = float(value)
-
-        df = pl.DataFrame(data, infer_schema_length=None)
-        logger.info(f"Loaded {len(df)} benchmark results")
-        return df
-
-    except Exception as e:
-        logger.error(f"Error loading data: {e}")
-        return pl.DataFrame()
 
 
 def main(
