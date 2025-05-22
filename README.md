@@ -226,6 +226,28 @@ These automations are based on our [MLPerf inference v5.0 submission](https://gi
 featuring DeepSeek-R1-Distill-Llama-8B and vLLM.
 
 
-## Authors
+## License and Copyright
 
-Daniel Altunay and Grigori Fursin (FCS Labs, FlexAI)
+This project is licensed under the [Apache License 2.0](LICENSE.md).
+
+© 2025 FlexAI
+
+Portions of the code were adapted from the following MLCommons repositories, 
+which are also licensed under the Apache 2.0 license:
+
+* [mlcommons@inference](https://github.com/mlcommons/inference)
+* [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
+* [mlcommons@ck](https://github.com/mlcommons/ck)
+* [mlcommons@vllm-project](https://github.com/vllm-project/vllm)
+
+## Authors and maintaners
+
+[Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
+
+## Contributing
+
+We welcome contributions to this project!
+
+If you have ideas, bug reports, or feature requests, please [open an issue](https://github.com/flexaihq/flexbench/issues).
+To contribute code, feel free to submit a [pull request](https://github.com/flexaihq/flexbench/pulls).
+By contributing, you agree that your contributions will be licensed under the same [Apache License 2.0](LICENSE.md).
