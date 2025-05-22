@@ -29,6 +29,11 @@ def get_args():
         help="Model name on HuggingFace or local path",
     )
     parser.add_argument(
+        "--remote-model-path",
+        required=False,
+        help="Model name used to serve the model at the remote endpoint",
+    )
+    parser.add_argument(
         "--api-server",
         required=True,
         help="vLLM API server URL (default: http://localhost:8000)",
@@ -161,6 +166,7 @@ async def async_main() -> dict:
     benchmark_config = BenchmarkConfig(
         task=args.task,
         model_path=args.model_path,
+        remote_model_path=args.remote_model_path,
         tokenizer_path_override=args.tokenizer_path_override,
         api_server=args.api_server,
         api_token=args.api_token,

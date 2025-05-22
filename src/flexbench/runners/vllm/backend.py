@@ -125,7 +125,7 @@ class VLLMBackend(BaseBackend):
             headers["Authorization"] = f"Bearer {self.config.api_token}"
 
         payload = {
-            "model": self.config.model_path,
+            "model": self.config.remote_model_path,
             "prompt": prompt,
             "max_tokens": query["max_tokens"],
             "temperature": 0,
