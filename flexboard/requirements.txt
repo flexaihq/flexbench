@@ -8,3 +8,4 @@ polars
 pyarrow
 scikit-learn
 xgboost
+cmind

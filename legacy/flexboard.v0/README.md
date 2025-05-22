@@ -62,3 +62,14 @@ Make sure your virtual environment is activated first.
 
 To add a new page to the dashboard, create a new folder `_<page_index>_<page_name>` in the `src/flexboard/st_pages/` folder. This newly created folder must contain a `_page.py` script. Add other page dependencies in the same folder.  
 Once you're done with this, include the page in the app: add a new `st.Page` in the Streamlit navigation in `src/flexboard/app.py`, with the title you want.
+
+
+## License and Copyright
+
+This project is licensed under the [Apache License 2.0](LICENSE.md).
+
+© 2025 FlexAI
+
+## Authors and maintaners
+
+[Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
