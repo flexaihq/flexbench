@@ -1433,5 +1433,13 @@ with gr.Blocks(title="MLPerf Configuration Finder") as interface:
         api_name=False,
     )
 
+    gr.Markdown("---")
+    gr.HTML("""
+        <div style="text-align: center;">
+            Authors: <a href="https://www.linkedin.com/in/daltunay">Daniel Altunay</a> and 
+            <a href="https://cKnowledge.org/gfursin">Grigori Fursin</a> (FCS Labs)
+        </div>
+    """)
+
 if __name__ == "__main__":
     interface.launch(share=False)
