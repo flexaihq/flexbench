@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-server
+    ports:
+      - 8000:8000
+    networks:
+      - flexbench-network
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - HF_HOME=/root/.cache/huggingface
+    command:
+      - vllm
+      - serve
+      - HuggingFaceTB/SmolLM2-135M-Instruct
+      - --host=0.0.0.0
+      - --port=8000
+      - --max-model-len=2048
+      - --disable-log-requests
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              device_ids: ["0"]
+    healthcheck:
+      test: [CMD, curl, -f, http://127.0.0.1:8000/health]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  flexbench:
+    build: .
+    container_name: flexbench-runner
+    networks:
+      - flexbench-network
+    volumes:
+      - ./results:/app/results
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HF_HOME=/root/.cache/huggingface
+    command:
+      - python
+      - -m
+      - flexbench
+      - --task=text
+      - --model-path=HuggingFaceTB/SmolLM2-135M-Instruct
+      - --api-server=http://vllm-server:8000
+      - --scenario=Server
+      - --target-qps=10
+      - --dataset-path=ctuning/MLPerf-OpenOrca
+      - --dataset-input-column=question
+      - --backend=loadgen
+      - --output-dir=/app/results
+      - --total-sample-count=100
+    depends_on:
+      vllm-server:
+        condition: service_healthy
+
+networks:
+  flexbench-network:
+    driver: bridge
