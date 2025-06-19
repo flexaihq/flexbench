@@ -5,6 +5,7 @@ A flexible benchmarking framework for language and vision models with automated 
 ## Features
 
 - **Automated Docker orchestration** - Zero-setup benchmarking with container management
+- **Multiple device support** - NVIDIA GPUs, CPU-only systems, and AMD ROCm GPUs
 - **MLPerf-compliant scenarios** - Server, Offline, and SingleStream inference modes
 - **Universal model support** - Compatible with any HuggingFace model and dataset
 - **Performance & accuracy evaluation** - Comprehensive metrics and validation
@@ -139,6 +140,49 @@ FlexBench supports multiple inference scenarios based on MLPerf standards:
 | **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
 
 For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
+
+## Device Type Support
+
+FlexBench supports multiple hardware device types with automatic vLLM image management:
+
+```bash
+# CPU-only systems (default) - builds vLLM from source (~10-20 min build time)
+flexbench --task text \
+          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
+          --scenario Server \
+          --target-qps 5 \
+          --device-type cpu \
+          --vllm-memory-limit 32g \
+          --dataset-path ctuning/MLPerf-OpenOrca \
+          --dataset-input-column question
+
+# NVIDIA GPUs - uses published vLLM image
+flexbench --task text \
+          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
+          --scenario Server \
+          --target-qps 10 \
+          --device-type nvidia \
+          --gpu-devices 0,1 \
+          --dataset-path ctuning/MLPerf-OpenOrca \
+          --dataset-input-column question
+
+# AMD ROCm GPUs - builds vLLM from source (~15-30 min build time)
+flexbench --task text \
+          --model-path microsoft/DialoGPT-medium \
+          --scenario Server \
+          --target-qps 8 \
+          --device-type rocm \
+          --vllm-memory-limit 32g \
+          --gpu-devices 0,1 \
+          --vllm-build-args "PYTORCH_ROCM_ARCH=gfx1100" \
+          --dataset-path ctuning/MLPerf-OpenOrca \
+          --dataset-input-column question
+```
+
+**Device Types:**
+- **`cpu`** (default): Builds from source using [`Dockerfile.cpu`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.cpu) for CPU-only inference
+- **`nvidia`**: Uses published [`vllm/vllm-openai:latest`](https://hub.docker.com/r/vllm/vllm-openai/tags) image
+- **`rocm`**: Builds from source using [`Dockerfile.rocm`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.rocm) for AMD GPUs
 
 ## GPU Configuration
 

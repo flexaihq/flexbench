@@ -156,6 +156,17 @@ def add_docker_arguments(parser: argparse.ArgumentParser) -> None:
         help="FlexBench Docker image to use (default: flexbench:latest)",
     )
     
+    # Device type configuration
+    docker_group.add_argument(
+        "--device-type",
+        choices=["cpu", "nvidia", "rocm"],
+        default="cpu",
+        help="""Hardware device type (default: cpu):
+  cpu:    Builds from source using Dockerfile.cpu (~10-20 min, no GPU drivers needed)
+  nvidia: Uses published vllm/vllm-openai:latest image (instant startup, requires NVIDIA GPU)
+  rocm:   Builds from source using Dockerfile.rocm (~15-30 min, for AMD GPUs)""",
+    )
+
     # GPU configuration
     gpu_group = docker_group.add_mutually_exclusive_group()
     gpu_group.add_argument(
@@ -168,6 +179,26 @@ def add_docker_arguments(parser: argparse.ArgumentParser) -> None:
         help="Number of GPUs to use (will use first N GPUs)",
     )
     
+    # vLLM build configuration (for non-nvidia devices)
+    docker_group.add_argument(
+        "--vllm-repo",
+        default="https://github.com/vllm-project/vllm.git",
+        help="vLLM repository URL for building from source (default: official repo)",
+    )
+    docker_group.add_argument(
+        "--vllm-branch",
+        default="main",
+        help="vLLM repository branch/tag to use (default: main)",
+    )
+    docker_group.add_argument(
+        "--vllm-build-args",
+        help="""Additional build arguments for vLLM Docker build (space-separated key=value pairs).
+Examples:
+  CPU: 'VLLM_CPU_DISABLE_AVX512=true PYTHON_VERSION=3.11'
+  ROCm: 'PYTORCH_ROCM_ARCH=gfx1100' (use 'rocminfo | grep gfx' to find your GPU arch)
+Common ROCm architectures: gfx906 (VII/MI50), gfx908 (MI100), gfx90a (MI210/250), gfx1100 (RX7900)""",
+    )
+
     # vLLM configuration
     docker_group.add_argument(
         "--vllm-port",
@@ -270,26 +301,66 @@ def create_cli_parser() -> argparse.ArgumentParser:
         description="FlexBench CLI - Containerized benchmarking with vLLM and FlexBench",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Device Types:
+  cpu:    Builds vLLM from source using Dockerfile.cpu (~10-20 min first run)
+          No GPU drivers required, runs on any CPU system (DEFAULT)
+  nvidia: Uses published vllm/vllm-openai:latest (fastest setup, best performance)
+          Requires NVIDIA GPU drivers and nvidia-container-toolkit
+  rocm:   Builds vLLM from source using Dockerfile.rocm (~15-30 min first run)
+          Requires AMD GPU with ROCm drivers and rocm-container-toolkit
+
 Examples:
-  # Basic benchmark with automatic GPU detection
+  # CPU-only systems (default) - builds vLLM from source (~10-20 min first run)
+  flexbench --task text --model-path HuggingFaceTB/SmolLM2-135M-Instruct \\
+            --scenario Server --target-qps 5 \\
+            --dataset-path ctuning/MLPerf-OpenOrca \\
+            --dataset-input-column question
+
+  # NVIDIA GPUs - instant startup with published image
   flexbench --task text --model-path meta-llama/Llama-2-7b-chat-hf \\
             --scenario Server --target-qps 10 \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question
-
-  # Sweep mode with specific GPUs
-  flexbench --task text --model-path microsoft/DialoGPT-medium \\
-            --scenario Server --sweep --gpu-devices 0,1 \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question
-
-  # Custom Docker images and settings
-  flexbench --task text --model-path HuggingFaceTB/SmolLM2-135M-Instruct \\
-            --scenario Offline --target-qps 5 --batch-size 8 \\
+            --device-type nvidia \\
             --dataset-path ctuning/MLPerf-OpenOrca \\
             --dataset-input-column question \\
-            --vllm-image custom-vllm:latest \\
+            --gpu-devices 0,1
+
+  # AMD ROCm GPUs - builds vLLM from source (~15-30 min first run)
+  flexbench --task text --model-path microsoft/DialoGPT-medium \\
+            --scenario Server --target-qps 8 \\
+            --device-type rocm --gpu-devices 0,1 \\
+            --vllm-build-args 'PYTORCH_ROCM_ARCH=gfx1100' \\
+            --dataset-path ctuning/MLPerf-OpenOrca \\
+            --dataset-input-column question
+
+  # CPU with custom build args (disable AVX512 for older CPUs)
+  flexbench --task text --model-path HuggingFaceTB/SmolLM2-135M-Instruct \\
+            --scenario Offline --batch-size 4 \\
+            --device-type cpu \\
+            --vllm-build-args 'VLLM_CPU_DISABLE_AVX512=true' \\
+            --dataset-path ctuning/MLPerf-OpenOrca \\
+            --dataset-input-column question \\
             --no-cleanup
+
+ROCm GPU Architecture Detection:
+  To find your GPU architecture: rocminfo | grep 'Name:' | grep 'gfx'
+  Common architectures:
+    gfx906  (Radeon VII, MI50)
+    gfx908  (MI100)
+    gfx90a  (MI210, MI250)
+    gfx1100 (RX 7900 series)
+  Then use: --vllm-build-args 'PYTORCH_ROCM_ARCH=gfx1100'
+
+Performance Tips:
+  CPU:    Use smaller models, increase batch size, consider --vllm-build-args 'VLLM_CPU_DISABLE_AVX512=true' for older CPUs
+  ROCm:   Set PYTORCH_ROCM_ARCH correctly, use tensor parallelism: --gpu-devices 0,1
+  NVIDIA: Enable tensor parallelism for large models: --gpu-devices 0,1,2,3
+
+Debugging:
+  --no-cleanup             Keep containers after run for inspection
+  --no-pull                Skip image pull/build (use existing images)
+  --dry-run                Show configuration without running
+  docker logs vllm-server  Check vLLM server logs if startup fails
+  docker logs flexbench-runner  Check benchmark execution logs
         """
     )
     add_benchmark_arguments(parser)
