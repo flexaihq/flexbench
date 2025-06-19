@@ -3,7 +3,7 @@
 import asyncio
 import sys
 
-from flexbench.cli.args import get_cli_args
+from flexbench.args import create_cli_parser, validate_args
 from flexbench.cli.config import create_docker_config_from_args
 from flexbench.cli.docker import DockerOrchestrator
 from flexbench.utils import get_logger
@@ -15,7 +15,9 @@ async def async_main() -> int:
     """Main async CLI function."""
     try:
         # Parse and validate arguments
-        args = get_cli_args()
+        parser = create_cli_parser()
+        args = parser.parse_args()
+        args = validate_args(args)
         
         log.info("FlexBench CLI starting...")
         log.info(f"Arguments: {vars(args)}")

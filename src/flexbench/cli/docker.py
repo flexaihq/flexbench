@@ -271,33 +271,20 @@ class DockerOrchestrator:
     
     async def _build_flexbench_image(self):
         """Build FlexBench Docker image."""
-        if self.temp_dir is None:
-            raise RuntimeError("Temp directory not initialized")
-            
-        dockerfile_content = self._get_flexbench_dockerfile()
-        dockerfile_path = self.temp_dir / "Dockerfile"
+        # Find the project root (where Dockerfile is located)
+        project_root = Path(__file__).parent.parent.parent.parent
+        dockerfile_path = project_root / "Dockerfile"
         
-        with open(dockerfile_path, 'w') as f:
-            f.write(dockerfile_content)
+        if not dockerfile_path.exists():
+            raise RuntimeError(f"Dockerfile not found at {dockerfile_path}")
         
         log.info("Building FlexBench Docker image...")
-        
-        # Copy source code to temp directory
-        import shutil
-        src_dir = Path(__file__).parent.parent.parent.parent / "src"
-        temp_src_dir = self.temp_dir / "src"
-        shutil.copytree(src_dir, temp_src_dir)
-        
-        # Copy pyproject.toml
-        pyproject_src = Path(__file__).parent.parent.parent.parent / "pyproject.toml"
-        pyproject_dst = self.temp_dir / "pyproject.toml"
-        shutil.copy2(pyproject_src, pyproject_dst)
         
         result = subprocess.run(
             [
                 "docker", "build",
                 "-t", self.config.docker_config.flexbench_image,
-                str(self.temp_dir)
+                str(project_root)
             ],
             capture_output=True,
             text=True
@@ -307,35 +294,6 @@ class DockerOrchestrator:
             raise RuntimeError(f"Failed to build FlexBench image: {result.stderr}")
         
         log.info("FlexBench Docker image built successfully")
-    
-    def _get_flexbench_dockerfile(self) -> str:
-        """Get Dockerfile content for FlexBench."""
-        return """
-FROM python:3.12-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \\
-    curl \\
-    git \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
-
-# Copy project files
-COPY pyproject.toml ./
-COPY src/ ./src/
-
-# Install FlexBench
-RUN pip install --no-cache-dir -e .
-
-# Set environment variables
-ENV PYTHONPATH=/app/src
-ENV LOG_LEVEL=INFO
-
-# Run FlexBench
-CMD ["python", "-m", "flexbench"]
-""".strip()
     
     async def _start_containers(self):
         """Start Docker containers using docker-compose."""
