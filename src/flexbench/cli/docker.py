@@ -145,25 +145,13 @@ class DockerOrchestrator:
             }
         }
 
-        # Set command based on device type and image source
-        if device_type == "nvidia":
-            # Published NVIDIA image uses standard vllm serve command
-            config["command"] = [
-                "vllm", "serve",
-                self.config.benchmark_config.remote_model_path,
-                "--host", "0.0.0.0",  # nosec: Required for Docker container access
-                "--port", "8000",
-                f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
-            ]
-        else:
-            # Custom built images (CPU/ARM/ROCm) have entrypoint set to api_server
-            # Just pass the arguments directly to the entrypoint
-            config["command"] = [
-                "--model", self.config.benchmark_config.remote_model_path,
-                "--host", "0.0.0.0",  # nosec: Required for Docker container access
-                "--port", "8000",
-                f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
-            ]
+        # Set command
+        config["command"] = [
+            "--model", self.config.benchmark_config.remote_model_path,
+            "--host", "0.0.0.0",  # nosec: Required for Docker container access
+            "--port", "8000",
+            f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
+        ]
 
         # Device-specific environment variables
         if device_type == "nvidia":
