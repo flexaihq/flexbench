@@ -136,13 +136,6 @@ class DockerOrchestrator:
             "environment": {
                 "HF_HOME": "/root/.cache/huggingface"
             },
-            "command": [
-                "vllm", "serve",
-                self.config.benchmark_config.remote_model_path,
-                "--host", "0.0.0.0",  # nosec: Required for Docker container access
-                "--port", "8000",
-                f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
-            ],
             "healthcheck": {
                 "test": ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"],
                 "interval": "10s",
@@ -152,6 +145,26 @@ class DockerOrchestrator:
             }
         }
 
+        # Set command based on device type and image source
+        if device_type == "nvidia":
+            # Published NVIDIA image uses standard vllm serve command
+            config["command"] = [
+                "vllm", "serve",
+                self.config.benchmark_config.remote_model_path,
+                "--host", "0.0.0.0",  # nosec: Required for Docker container access
+                "--port", "8000",
+                f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
+            ]
+        else:
+            # Custom built images (CPU/ARM/ROCm) have entrypoint set to api_server
+            # Just pass the arguments directly to the entrypoint
+            config["command"] = [
+                "--model", self.config.benchmark_config.remote_model_path,
+                "--host", "0.0.0.0",  # nosec: Required for Docker container access
+                "--port", "8000",
+                f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
+            ]
+
         # Device-specific environment variables
         if device_type == "nvidia":
             config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(self.config.docker_config.gpu_devices or ["all"])
@@ -160,12 +173,23 @@ class DockerOrchestrator:
             gpu_devices = self.config.docker_config.gpu_devices or ["all"]
             if gpu_devices != ["all"]:
                 config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
-        elif device_type == "cpu":
-            # For CPU-only deployment
+        elif device_type in ("cpu", "arm"):
+            # For CPU-only deployment (including ARM processors)
             config["environment"]["VLLM_ATTENTION_BACKEND"] = "TORCH_SDPA"
 
+            # ARM-specific workarounds for NUMA detection issues
+            if device_type == "arm":
+                config["environment"].update({
+                    "VLLM_CPU_KVCACHE_SPACE": "4",
+                    "OMP_NUM_THREADS": "1",
+                    "VLLM_CPU_OMP_THREADS_BIND": "0",
+                })
+
         if self.config.docker_config.vllm_disable_log_requests:
-            config["command"].append("--disable-log-requests")
+            if device_type == "nvidia":
+                config["command"].append("--disable-log-requests")
+            else:
+                config["command"].append("--disable-log-requests")
 
         # Add device-specific command arguments
         if device_type == "nvidia" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
@@ -176,8 +200,8 @@ class DockerOrchestrator:
             config["command"].extend([
                 f"--tensor-parallel-size={self.config.docker_config.gpu_count}"
             ])
-        elif device_type == "cpu":
-            # CPU-specific optimizations
+        elif device_type in ("cpu", "arm"):
+            # CPU-specific optimizations (including ARM processors)
             config["command"].extend([
                 "--enforce-eager",  # Disable CUDA graph for CPU
                 "--disable-custom-all-reduce"  # Disable custom kernels for CPU
@@ -419,6 +443,10 @@ class DockerOrchestrator:
             log.error(f"Docker compose failed with return code {result.returncode}")
             log.error(f"stdout: {result.stdout}")
             log.error(f"stderr: {result.stderr}")
+
+            # Get detailed logs from failed containers
+            await self._show_container_logs()
+
             raise RuntimeError(f"Failed to start containers: {result.stderr}")
 
         log.info("Containers started successfully")
@@ -507,3 +535,44 @@ class DockerOrchestrator:
             import shutil
             shutil.rmtree(self.temp_dir)
             log.info("Temporary files cleaned up")
+
+    async def _show_container_logs(self):
+        """Show logs from containers to help debug startup failures."""
+        if self.compose_file is None or self.temp_dir is None:
+            return
+
+        log.info("Getting container logs for debugging...")
+
+        # Get logs from vllm-server container
+        try:
+            result = subprocess.run(
+                ["docker", "logs", "vllm-server"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.stdout or result.stderr:
+                log.error("=== vLLM Server Container Logs ===")
+                if result.stdout:
+                    log.error(f"stdout: {result.stdout}")
+                if result.stderr:
+                    log.error(f"stderr: {result.stderr}")
+        except Exception as e:
+            log.warning(f"Could not get vllm-server logs: {e}")
+
+        # Get logs from flexbench container if it exists
+        try:
+            result = subprocess.run(
+                ["docker", "logs", "flexbench-runner"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.stdout or result.stderr:
+                log.error("=== FlexBench Container Logs ===")
+                if result.stdout:
+                    log.error(f"stdout: {result.stdout}")
+                if result.stderr:
+                    log.error(f"stderr: {result.stderr}")
+        except Exception as e:
+            log.debug(f"Could not get flexbench-runner logs (this is normal if it didn't start): {e}")
