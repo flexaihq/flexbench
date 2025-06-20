@@ -502,7 +502,10 @@ class DockerOrchestrator:
         results_file = Path(results_dir_str) / "benchmark_results.json"
         if results_file.exists():
             with open(results_file) as f:
-                return json.load(f)
+                result = json.load(f)
+            # Add results path to the result for CLI consistency
+            result["results_path"] = str(results_file.absolute())
+            return result
         else:
             log.warning("No results file found")
             return {}
