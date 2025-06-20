@@ -159,12 +159,13 @@ def add_docker_arguments(parser: argparse.ArgumentParser) -> None:
     # Device type configuration
     docker_group.add_argument(
         "--device-type",
-        choices=["cpu", "nvidia", "rocm"],
+        choices=["cpu", "nvidia", "rocm", "arm"],
         default="cpu",
         help="""Hardware device type (default: cpu):
   cpu:    Builds from source using Dockerfile.cpu (~10-20 min, no GPU drivers needed)
   nvidia: Uses published vllm/vllm-openai:latest image (instant startup, requires NVIDIA GPU)
-  rocm:   Builds from source using Dockerfile.rocm (~15-30 min, for AMD GPUs)""",
+  rocm:   Builds from source using Dockerfile.rocm (~15-30 min, for AMD GPUs)
+  arm:    Builds from source using Dockerfile.arm (~15-30 min, for Apple Silicon/ARM64)""",
     )
 
     # GPU configuration
@@ -179,26 +180,6 @@ def add_docker_arguments(parser: argparse.ArgumentParser) -> None:
         help="Number of GPUs to use (will use first N GPUs)",
     )
     
-    # vLLM build configuration (for non-nvidia devices)
-    docker_group.add_argument(
-        "--vllm-repo",
-        default="https://github.com/vllm-project/vllm.git",
-        help="vLLM repository URL for building from source (default: official repo)",
-    )
-    docker_group.add_argument(
-        "--vllm-branch",
-        default="main",
-        help="vLLM repository branch/tag to use (default: main)",
-    )
-    docker_group.add_argument(
-        "--vllm-build-args",
-        help="""Additional build arguments for vLLM Docker build (space-separated key=value pairs).
-Examples:
-  CPU: 'VLLM_CPU_DISABLE_AVX512=true PYTHON_VERSION=3.11'
-  ROCm: 'PYTORCH_ROCM_ARCH=gfx1100' (use 'rocminfo | grep gfx' to find your GPU arch)
-Common ROCm architectures: gfx906 (VII/MI50), gfx908 (MI100), gfx90a (MI210/250), gfx1100 (RX7900)""",
-    )
-
     # vLLM configuration
     docker_group.add_argument(
         "--vllm-port",
@@ -217,6 +198,12 @@ Common ROCm architectures: gfx906 (VII/MI50), gfx908 (MI100), gfx90a (MI210/250)
     docker_group.add_argument(
         "--model-cache-dir",
         help="Host directory to mount for model cache (speeds up subsequent runs)",
+    )
+    
+    # Build configuration
+    docker_group.add_argument(
+        "--vllm-build-args",
+        help="Build arguments for vLLM (e.g., 'PYTORCH_ROCM_ARCH=gfx1100 ARG2=value2')",
     )
     
     # Resource limits
@@ -308,6 +295,8 @@ Device Types:
           Requires NVIDIA GPU drivers and nvidia-container-toolkit
   rocm:   Builds vLLM from source using Dockerfile.rocm (~15-30 min first run)
           Requires AMD GPU with ROCm drivers and rocm-container-toolkit
+  arm:    Builds vLLM from source using Dockerfile.arm (~15-30 min first run)
+          Requires Apple Silicon/ARM64 architecture
 
 Examples:
   # CPU-only systems (default) - builds vLLM from source (~10-20 min first run)
@@ -328,7 +317,13 @@ Examples:
   flexbench --task text --model-path microsoft/DialoGPT-medium \\
             --scenario Server --target-qps 8 \\
             --device-type rocm --gpu-devices 0,1 \\
-            --vllm-build-args 'PYTORCH_ROCM_ARCH=gfx1100' \\
+            --dataset-path ctuning/MLPerf-OpenOrca \\
+            --dataset-input-column question
+
+  # Apple Silicon/ARM64 - builds vLLM from source (~15-30 min first run)
+  flexbench --task text --model-path meta-llama/Llama-2-7b-chat-hf \\
+            --scenario Server --target-qps 10 \\
+            --device-type arm \\
             --dataset-path ctuning/MLPerf-OpenOrca \\
             --dataset-input-column question
 

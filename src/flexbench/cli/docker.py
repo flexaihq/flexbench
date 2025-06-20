@@ -71,7 +71,6 @@ class DockerOrchestrator:
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         compose_config = {
-            "version": "3.8",
             "services": {
                 "vllm-server": self._get_vllm_service_config(cache_dir),
                 "flexbench": self._get_flexbench_service_config(results_dir, cache_dir),
@@ -114,14 +113,11 @@ class DockerOrchestrator:
             raise RuntimeError("Temp directory not initialized")
 
         self.compose_file = self.temp_dir / "docker-compose.yml"
-        
+
         with open(self.compose_file, 'w') as f:
             yaml.dump(compose_config, f, default_flow_style=False)
-        
+
         log.info(f"Created docker-compose.yml at {self.compose_file}")
-        
-        # Log the compose config for debugging
-        log.debug(f"Docker compose configuration:\n{yaml.dump(compose_config, default_flow_style=False)}")
 
     def _get_vllm_service_config(self, cache_dir: Path) -> dict[str, Any]:
         """Get vLLM service configuration for docker-compose."""
@@ -164,15 +160,9 @@ class DockerOrchestrator:
             gpu_devices = self.config.docker_config.gpu_devices or ["all"]
             if gpu_devices != ["all"]:
                 config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
-                config["environment"]["HIP_VISIBLE_DEVICES"] = ",".join(gpu_devices)
-            # Set ROCm-specific environment variables
-            config["environment"]["RAY_EXPERIMENTAL_NOSET_ROCR_VISIBLE_DEVICES"] = "1"
-            config["environment"]["HIP_FORCE_DEV_KERNARG"] = "1"
         elif device_type == "cpu":
             # For CPU-only deployment
             config["environment"]["VLLM_ATTENTION_BACKEND"] = "TORCH_SDPA"
-            # Remove any GPU-related settings
-            config["environment"].pop("CUDA_VISIBLE_DEVICES", None)
 
         if self.config.docker_config.vllm_disable_log_requests:
             config["command"].append("--disable-log-requests")
@@ -207,6 +197,8 @@ class DockerOrchestrator:
         config = {
             "image": self.config.docker_config.flexbench_image,
             "container_name": "flexbench-runner",
+            # Always use amd64 for mlcommons-loadgen wheel compatibility
+            "platform": "linux/amd64",
             "networks": [self.config.docker_config.network_name],
             "volumes": [
                 f"{results_dir}:/app/results",
@@ -322,9 +314,11 @@ class DockerOrchestrator:
 
         log.info("Building FlexBench Docker image...")
 
+        # Always use amd64 for mlcommons-loadgen wheel compatibility
         result = subprocess.run(
             [
                 "docker", "build",
+                "--platform", "linux/amd64",
                 "-t", self.config.docker_config.flexbench_image,
                 str(project_root)
             ],
@@ -368,9 +362,11 @@ class DockerOrchestrator:
             if not dockerfile_path.exists():
                 raise RuntimeError(f"Dockerfile {dockerfile} not found in vLLM repository")
 
-            # Prepare build command
+            # Prepare build command with platform support
+            platform_str = "linux/arm64" if device_type == "arm" else "linux/amd64"
             build_command = [
                 "docker", "build",
+                "--platform", platform_str,
                 "-t", self.config.docker_config.custom_vllm_image_name,
                 "-f", str(dockerfile_path),
                 str(vllm_dir)
@@ -378,29 +374,17 @@ class DockerOrchestrator:
 
             # Add device-specific build arguments
             if device_type == "rocm":
-                # ROCm-specific build arguments
                 build_command.extend(["--target", "final"])
-                # Set ROCm architecture if available
-                if self.config.docker_config.vllm_build_args and "PYTORCH_ROCM_ARCH" in self.config.docker_config.vllm_build_args:
-                    rocm_arch = self.config.docker_config.vllm_build_args["PYTORCH_ROCM_ARCH"]
-                    build_command.extend(["--build-arg", f"ARG_PYTORCH_ROCM_ARCH={rocm_arch}"])
             elif device_type == "cpu":
-                # CPU-specific build arguments
                 build_command.extend(["--target", "vllm-openai"])
-                # Disable AVX512 if specified
-                if self.config.docker_config.vllm_build_args and "VLLM_CPU_DISABLE_AVX512" in self.config.docker_config.vllm_build_args:
-                    avx512_flag = self.config.docker_config.vllm_build_args["VLLM_CPU_DISABLE_AVX512"]
-                    build_command.extend(["--build-arg", f"VLLM_CPU_DISABLE_AVX512={avx512_flag}"])
 
-            # Add custom build arguments if specified
+            # Add all custom build arguments
             if self.config.docker_config.vllm_build_args:
                 for key, value in self.config.docker_config.vllm_build_args.items():
-                    # Skip device-specific args we already handled
-                    if key not in ["PYTORCH_ROCM_ARCH", "VLLM_CPU_DISABLE_AVX512"]:
-                        build_command.extend(["--build-arg", f"{key}={value}"])
+                    build_command.extend(["--build-arg", f"{key}={value}"])
 
-            log.info(f"Building vLLM Docker image with command: {' '.join(build_command)}")
-            log.info("This may take 10-30 minutes depending on your system...")
+            log.info(f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}")
+            log.info("This may take 10-30 minutes...")
 
             # Run the build (this can take a while)
             result = subprocess.run(
