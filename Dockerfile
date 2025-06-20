@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # Install system dependencies
 RUN apt-get update && \
@@ -35,7 +35,7 @@ RUN uv pip install --no-deps -e .
 
 # Set FlexBench environment variables
 ENV PYTHONPATH=/app/src
-ENV LOG_LEVEL=INFO
+ENV LOG_LEVEL=DEBUG
 
 # Health check for FlexBench readiness
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

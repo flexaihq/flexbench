@@ -52,6 +52,7 @@ class DockerConfig:
             "nvidia": "Dockerfile",
             "cpu": "Dockerfile.cpu",
             "rocm": "Dockerfile.rocm",
+            "arm": "Dockerfile.arm",
         }
         return dockerfile_map.get(self.device_type, "Dockerfile")
 
