@@ -85,7 +85,7 @@ class DockerOrchestrator:
         # Add device-specific runtime configuration
         device_type = self.config.docker_config.device_type
 
-        if device_type == "nvidia" and (self.config.docker_config.gpu_devices or self.config.docker_config.gpu_count):
+        if device_type == "nvidia":
             # NVIDIA GPU configuration
             compose_config["services"]["vllm-server"]["deploy"] = {
                 "resources": {
@@ -98,7 +98,7 @@ class DockerOrchestrator:
                     }
                 }
             }
-        elif device_type == "rocm" and (self.config.docker_config.gpu_devices or self.config.docker_config.gpu_count):
+        elif device_type == "rocm":
             # AMD ROCm GPU configuration
             compose_config["services"]["vllm-server"]["devices"] = ["/dev/kfd", "/dev/dri"]
             compose_config["services"]["vllm-server"]["group_add"] = ["video", "render"]
