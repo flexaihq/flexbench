@@ -158,12 +158,10 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
     if dataset_config is None:
         dataset_config = create_dataset_config(args)
     
-    remote_model_path = getattr(args, 'remote_model_path', None) or args.model_path
-
     return BenchmarkConfig(
         task=args.task,
         model_path=args.model_path,
-        remote_model_path=remote_model_path,
+        remote_model_path=getattr(args, 'remote_model_path', None),
         tokenizer_path_override=getattr(args, 'tokenizer_path_override', None),
         api_server=getattr(args, 'api_server', 'http://localhost:8000'),
         api_token=getattr(args, 'api_token', None),

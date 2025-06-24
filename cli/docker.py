@@ -1,7 +1,6 @@
 """Docker orchestration for FlexBench CLI."""
 
 import json
-import os
 import subprocess
 import tempfile
 import time
@@ -134,7 +133,7 @@ class DockerOrchestrator:
         self.compose_file = self.temp_dir / "docker-compose.yml"
 
         with open(self.compose_file, 'w') as f:
-            yaml.dump(compose_config, f, default_flow_style=False, allow_unicode=True)
+            yaml.dump(compose_config, f, default_flow_style=False)
 
         log.info(f"Created docker-compose.yml at {self.compose_file}")
 
@@ -169,7 +168,7 @@ class DockerOrchestrator:
             "--model", self.config.benchmark_config.remote_model_path,
             "--host", "0.0.0.0",  # nosec: Required for Docker container access
             "--port", "8000",
-            "--max-model-len", str(self.config.docker_config.vllm_max_model_len),
+            f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
         ]
 
         # Device-specific environment variables
@@ -198,11 +197,11 @@ class DockerOrchestrator:
         # Add device-specific command arguments
         if device_type == "nvidia" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
             config["command"].extend([
-                "--tensor-parallel-size", str(self.config.docker_config.gpu_count)
+                f"--tensor-parallel-size={self.config.docker_config.gpu_count}"
             ])
         elif device_type == "rocm" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
             config["command"].extend([
-                "--tensor-parallel-size", str(self.config.docker_config.gpu_count)
+                f"--tensor-parallel-size={self.config.docker_config.gpu_count}"
             ])
         elif device_type in ("cpu", "arm"):
             # CPU-specific optimizations (including ARM processors)
@@ -343,8 +342,6 @@ class DockerOrchestrator:
         log.info("Building FlexBench Docker image...")
 
         # Always use amd64 for mlcommons-loadgen wheel compatibility
-        # Enable BuildKit for the --mount functionality
-        env = {"DOCKER_BUILDKIT": "1"}
         result = subprocess.run(
             [
                 "docker", "build",
@@ -353,8 +350,7 @@ class DockerOrchestrator:
                 str(project_root)
             ],
             capture_output=True,
-            text=True,
-            env={**env, **dict(os.environ)},
+            text=True
         )
 
         if result.returncode != 0:
@@ -418,13 +414,10 @@ class DockerOrchestrator:
             log.info("This may take 10-30 minutes...")
 
             # Run the build (this can take a while)
-            # Enable BuildKit for better build performance and features
-            env = {"DOCKER_BUILDKIT": "1"}
             result = subprocess.run(
                 build_command,
                 capture_output=True,
-                text=True,
-                env={**env, **dict(os.environ)},
+                text=True
             )
 
             if result.returncode != 0:
@@ -443,7 +436,7 @@ class DockerOrchestrator:
         log.info("Starting Docker containers...")
 
         result = subprocess.run(
-            ["docker", "compose", "-f", str(self.compose_file), "up", "-d"],
+            ["docker-compose", "-f", str(self.compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             cwd=self.temp_dir
@@ -492,16 +485,8 @@ class DockerOrchestrator:
 
         # Wait for flexbench container to complete
         subprocess.run(
-            [
-                "docker",
-                "compose",
-                "-f",
-                str(self.compose_file),
-                "logs",
-                "-f",
-                "flexbench",
-            ],
-            cwd=self.temp_dir,
+            ["docker-compose", "-f", str(self.compose_file), "logs", "-f", "flexbench"],
+            cwd=self.temp_dir
         )
 
         # Get exit code
@@ -543,7 +528,7 @@ class DockerOrchestrator:
         log.info("Cleaning up containers...")
 
         subprocess.run(
-            ["docker", "compose", "-f", str(self.compose_file), "down"],
+            ["docker-compose", "-f", str(self.compose_file), "down", "-v"],
             capture_output=True,
             cwd=self.temp_dir
         )
