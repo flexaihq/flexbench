@@ -133,7 +133,7 @@ class DockerOrchestrator:
         self.compose_file = self.temp_dir / "docker-compose.yml"
 
         with open(self.compose_file, 'w') as f:
-            yaml.dump(compose_config, f, default_flow_style=False)
+            yaml.dump(compose_config, f, default_flow_style=False, allow_unicode=True)
 
         log.info(f"Created docker-compose.yml at {self.compose_file}")
 
@@ -168,7 +168,7 @@ class DockerOrchestrator:
             "--model", self.config.benchmark_config.remote_model_path,
             "--host", "0.0.0.0",  # nosec: Required for Docker container access
             "--port", "8000",
-            f"--max-model-len={self.config.docker_config.vllm_max_model_len}",
+            "--max-model-len", str(self.config.docker_config.vllm_max_model_len),
         ]
 
         # Device-specific environment variables
@@ -197,11 +197,11 @@ class DockerOrchestrator:
         # Add device-specific command arguments
         if device_type == "nvidia" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
             config["command"].extend([
-                f"--tensor-parallel-size={self.config.docker_config.gpu_count}"
+                "--tensor-parallel-size", str(self.config.docker_config.gpu_count)
             ])
         elif device_type == "rocm" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
             config["command"].extend([
-                f"--tensor-parallel-size={self.config.docker_config.gpu_count}"
+                "--tensor-parallel-size", str(self.config.docker_config.gpu_count)
             ])
         elif device_type in ("cpu", "arm"):
             # CPU-specific optimizations (including ARM processors)
