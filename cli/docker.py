@@ -349,6 +349,7 @@ class DockerOrchestrator:
             [
                 "docker", "build",
                 "--platform", "linux/amd64",
+                "--ulimit", "nofile=65536:65536",
                 "-t", self.config.docker_config.flexbench_image,
                 str(project_root)
             ],
