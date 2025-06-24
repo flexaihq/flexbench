@@ -1,4 +1,4 @@
-"""Docker orchestration for FlexBench."""
+"""Docker orchestration for FlexBench CLI."""
 
 import json
 import subprocess
@@ -7,10 +7,28 @@ import time
 from pathlib import Path
 from typing import Any
 
-from flexbench.cli.config import FlexBenchDockerConfig
-from flexbench.utils import get_logger
+from cli.config import FlexBenchDockerConfig
+from cli.utils import get_logger
 
 log = get_logger(__name__)
+
+
+async def _check_docker_available():
+    """Check if Docker is available and running."""
+    try:
+        result = subprocess.run(
+            ["docker", "version"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode != 0:
+            raise RuntimeError("Docker is not running or not accessible")
+        log.info("Docker is available and running")
+    except FileNotFoundError:
+        raise RuntimeError("Docker is not installed") from None
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Docker command timed out - Docker may not be running") from None
 
 
 class DockerOrchestrator:
@@ -174,10 +192,7 @@ class DockerOrchestrator:
                 })
 
         if self.config.docker_config.vllm_disable_log_requests:
-            if device_type == "nvidia":
-                config["command"].append("--disable-log-requests")
-            else:
-                config["command"].append("--disable-log-requests")
+            config["command"].append("--disable-log-requests")
 
         # Add device-specific command arguments
         if device_type == "nvidia" and self.config.docker_config.gpu_count and self.config.docker_config.gpu_count > 1:
@@ -318,7 +333,7 @@ class DockerOrchestrator:
     async def _build_flexbench_image(self):
         """Build FlexBench Docker image."""
         # Find the project root (where Dockerfile is located)
-        project_root = Path(__file__).parent.parent.parent.parent
+        project_root = Path(__file__).parent.parent
         dockerfile_path = project_root / "Dockerfile"
 
         if not dockerfile_path.exists():

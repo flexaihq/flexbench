@@ -1,9 +1,47 @@
-"""Docker configuration for FlexBench."""
+"""Docker configuration for FlexBench CLI."""
 
 from dataclasses import dataclass
+from typing import Literal
 
-from flexbench.config import create_benchmark_config
-from flexbench.runners.base import BenchmarkConfig
+
+@dataclass
+class DatasetConfig:
+    """Dataset configuration for benchmark runs."""
+    path: str
+    input_column: str
+    output_column: str | None = None
+    system_prompt_column: str | None = None
+    image_column: str | None = None
+    split: str = "train"
+    accuracy_mode: bool = False
+
+
+@dataclass 
+class BenchmarkConfig:
+    """Configuration for MLPerf benchmark runs."""
+    task: str
+    model_path: str
+    api_server: str
+    dataset_config: DatasetConfig
+    scenario: Literal["Offline", "Server", "SingleStream"]
+    target_qps: float | None = None
+    
+    sweep_mode: bool = False
+    num_sweep_points: int = 10
+    tokenizer_path_override: str | None = None
+    remote_model_path: str | None = None
+    api_token: str | None = None
+    batch_size: int | None = None
+    max_generated_tokens: int | None = None
+    max_input_tokens: int | None = None
+    fixed_input_length: bool = False
+    accuracy: bool = False
+    total_sample_count: int | None = None
+    model_name: str = "llama2-70b"
+    config_path: str = "user.conf"
+    enable_trace: bool = False
+    log_output_to_stdout: bool = True
+    output_dir: str | None = None
 
 
 @dataclass
@@ -82,7 +120,7 @@ class DockerConfig:
 class FlexBenchDockerConfig:
     """Complete configuration for FlexBench CLI with Docker orchestration."""
 
-    # Core benchmark configuration (reuse existing structure)
+    # Core benchmark configuration
     benchmark_config: BenchmarkConfig
 
     # Docker-specific configuration
@@ -101,10 +139,51 @@ class FlexBenchDockerConfig:
         )
 
 
+def create_dataset_config(args) -> DatasetConfig:
+    """Create DatasetConfig from parsed arguments."""
+    return DatasetConfig(
+        path=args.dataset_path,
+        input_column=args.dataset_input_column,
+        output_column=getattr(args, 'dataset_output_column', None),
+        system_prompt_column=getattr(args, 'dataset_system_prompt_column', None),
+        image_column=getattr(args, 'dataset_image_column', None),
+        split=getattr(args, 'dataset_split', 'train'),
+        accuracy_mode=getattr(args, 'accuracy', False),
+    )
+
+
+def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -> BenchmarkConfig:
+    """Create BenchmarkConfig from parsed arguments."""
+    
+    if dataset_config is None:
+        dataset_config = create_dataset_config(args)
+    
+    return BenchmarkConfig(
+        task=args.task,
+        model_path=args.model_path,
+        remote_model_path=getattr(args, 'remote_model_path', None),
+        tokenizer_path_override=getattr(args, 'tokenizer_path_override', None),
+        api_server=getattr(args, 'api_server', 'http://localhost:8000'),
+        api_token=getattr(args, 'api_token', None),
+        dataset_config=dataset_config,
+        scenario=args.scenario,
+        target_qps=getattr(args, 'target_qps', None),
+        sweep_mode=getattr(args, 'sweep', False),
+        num_sweep_points=getattr(args, 'num_points', 10),
+        batch_size=getattr(args, 'batch_size', None),
+        max_generated_tokens=getattr(args, 'max_generated_tokens', None),
+        max_input_tokens=getattr(args, 'max_input_tokens', None),
+        fixed_input_length=getattr(args, 'fixed_input_length', False),
+        accuracy=getattr(args, 'accuracy', False),
+        total_sample_count=getattr(args, 'total_sample_count', None),
+        output_dir=args.output_dir,
+    )
+
+
 def create_docker_config_from_args(args) -> FlexBenchDockerConfig:
     """Create FlexBenchDockerConfig from parsed CLI arguments."""
 
-    # Create BenchmarkConfig using shared builder
+    # Create BenchmarkConfig using CLI builder
     benchmark_config = create_benchmark_config(args)
 
     # Parse vLLM build args if provided
