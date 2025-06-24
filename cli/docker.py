@@ -1,6 +1,7 @@
 """Docker orchestration for FlexBench CLI."""
 
 import json
+import os
 import subprocess
 import tempfile
 import time
@@ -342,6 +343,8 @@ class DockerOrchestrator:
         log.info("Building FlexBench Docker image...")
 
         # Always use amd64 for mlcommons-loadgen wheel compatibility
+        # Enable BuildKit for the --mount functionality
+        env = {"DOCKER_BUILDKIT": "1"}
         result = subprocess.run(
             [
                 "docker", "build",
@@ -350,7 +353,8 @@ class DockerOrchestrator:
                 str(project_root)
             ],
             capture_output=True,
-            text=True
+            text=True,
+            env={**env, **dict(os.environ)},
         )
 
         if result.returncode != 0:
@@ -414,10 +418,13 @@ class DockerOrchestrator:
             log.info("This may take 10-30 minutes...")
 
             # Run the build (this can take a while)
+            # Enable BuildKit for better build performance and features
+            env = {"DOCKER_BUILDKIT": "1"}
             result = subprocess.run(
                 build_command,
                 capture_output=True,
-                text=True
+                text=True,
+                env={**env, **dict(os.environ)},
             )
 
             if result.returncode != 0:
@@ -436,7 +443,7 @@ class DockerOrchestrator:
         log.info("Starting Docker containers...")
 
         result = subprocess.run(
-            ["docker-compose", "-f", str(self.compose_file), "up", "-d"],
+            ["docker", "compose", "-f", str(self.compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             cwd=self.temp_dir
@@ -485,8 +492,16 @@ class DockerOrchestrator:
 
         # Wait for flexbench container to complete
         subprocess.run(
-            ["docker-compose", "-f", str(self.compose_file), "logs", "-f", "flexbench"],
-            cwd=self.temp_dir
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(self.compose_file),
+                "logs",
+                "-f",
+                "flexbench",
+            ],
+            cwd=self.temp_dir,
         )
 
         # Get exit code
@@ -528,7 +543,7 @@ class DockerOrchestrator:
         log.info("Cleaning up containers...")
 
         subprocess.run(
-            ["docker-compose", "-f", str(self.compose_file), "down", "-v"],
+            ["docker", "compose", "-f", str(self.compose_file), "down"],
             capture_output=True,
             cwd=self.temp_dir
         )
