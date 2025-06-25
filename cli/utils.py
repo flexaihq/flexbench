@@ -1,28 +1,24 @@
 """Simple logging utilities for FlexBench CLI."""
 
 import logging
+import os
 import sys
-from typing import Optional
 
 
-def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
-    """Get a configured logger for the CLI."""
-    logger = logging.getLogger(name)
+def setup_logging():
+    """Set up logging configuration for the entire CLI."""
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    level = getattr(logging, log_level, logging.INFO)
     
-    if not logger.handlers:
-        # Configure handler
-        handler = logging.StreamHandler(sys.stdout)
-        
-        # Set format
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-    
-    # Set level from environment or parameter
-    import os
-    log_level = level or os.getenv('LOG_LEVEL', 'INFO')
-    logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
-    
-    return logger
+    # Configure root logger
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        stream=sys.stdout,
+        force=True  # Override any existing configuration
+    )
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger for the given name."""
+    return logging.getLogger(name)

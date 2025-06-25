@@ -73,6 +73,7 @@ Performance Tips:
   NVIDIA: Enable tensor parallelism for large models: --gpu-devices 0,1,2,3
 
 Debugging:
+  LOG_LEVEL=DEBUG flexbench ...  Enable verbose debug logging
   --no-cleanup             Keep containers after run for inspection
   --no-pull                Skip image pull/build (use existing images)
   --dry-run                Show configuration without running

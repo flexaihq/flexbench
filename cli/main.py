@@ -1,13 +1,17 @@
 """Main CLI entry point for FlexBench."""
 
 import asyncio
+import logging
+import os
 import sys
 
 from cli.args import create_cli_parser, validate_args
 from cli.config import create_docker_config_from_args
 from cli.docker import DockerOrchestrator, _check_docker_available
-from cli.utils import get_logger
+from cli.utils import get_logger, setup_logging
 
+# Set up logging once at module level
+setup_logging()
 log = get_logger(__name__)
 
 
@@ -20,7 +24,10 @@ async def async_main() -> int:
         args = validate_args(args)
         
         log.info("FlexBench CLI starting...")
+        log.debug(f"Log level set to: {os.getenv('LOG_LEVEL', 'INFO')}")
         log.info(f"Arguments: {vars(args)}")
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("Debug logging enabled")
         
         # Check for dry run
         if getattr(args, 'dry_run', False):

@@ -14,6 +14,27 @@ from cli.utils import get_logger
 log = get_logger(__name__)
 
 
+def _get_available_gpus() -> list[str]:
+    """Get list of available GPU device indices."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            gpu_indices = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+            log.debug(f"Detected GPU indices: {gpu_indices}")
+            return gpu_indices
+        else:
+            log.warning("Failed to detect GPUs with nvidia-smi, falling back to single GPU")
+            return ["0"]
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        log.warning("nvidia-smi not available, falling back to single GPU")
+        return ["0"]
+
+
 async def _check_docker_available():
     """Check if Docker is available and running."""
     try:
@@ -89,6 +110,18 @@ class DockerOrchestrator:
         cache_dir = Path(cache_dir_str).expanduser().absolute()
         cache_dir.mkdir(parents=True, exist_ok=True)
 
+        # Detect GPU devices first, before creating service configs
+        device_type = self.config.docker_config.device_type
+        if device_type == "nvidia":
+            # Get actual GPU devices instead of using "all"
+            gpu_devices = self.config.docker_config.gpu_devices
+            if not gpu_devices:
+                gpu_devices = _get_available_gpus()
+                log.info(f"No GPU devices specified, using detected GPUs: {gpu_devices}")
+            
+            # Store detected GPU devices for use in service configs
+            self._detected_gpu_devices = gpu_devices
+
         compose_config = {
             "services": {
                 "vllm-server": self._get_vllm_service_config(cache_dir),
@@ -102,17 +135,16 @@ class DockerOrchestrator:
         }
 
         # Add device-specific runtime configuration
-        device_type = self.config.docker_config.device_type
-
         if device_type == "nvidia":
-            # NVIDIA GPU configuration
+            # NVIDIA GPU configuration - use already detected GPU devices
+            compose_config["services"]["vllm-server"]["ipc"] = "host"  # Needed for NVIDIA containers
             compose_config["services"]["vllm-server"]["deploy"] = {
                 "resources": {
                     "reservations": {
                         "devices": [{
                             "driver": "nvidia",
                             "capabilities": ["gpu"],
-                            "device_ids": self.config.docker_config.gpu_devices or ["all"]
+                            "device_ids": self._detected_gpu_devices
                         }]
                     }
                 }
@@ -137,6 +169,7 @@ class DockerOrchestrator:
             yaml.dump(compose_config, f, default_flow_style=False, allow_unicode=True)
 
         log.info(f"Created docker-compose.yml at {self.compose_file}")
+        log.debug(f"Docker compose configuration:\n{yaml.dump(compose_config, default_flow_style=False, allow_unicode=True)}")
 
     def _get_vllm_service_config(self, cache_dir: Path) -> dict[str, Any]:
         """Get vLLM service configuration for docker-compose."""
@@ -153,14 +186,15 @@ class DockerOrchestrator:
                 f"{cache_dir}:/root/.cache/huggingface"
             ],
             "environment": {
-                "HF_HOME": "/root/.cache/huggingface"
+                "HF_HOME": "/root/.cache/huggingface",
+                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO")
             },
             "healthcheck": {
                 "test": ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"],
-                "interval": "10s",
-                "timeout": "5s",
-                "retries": 5,
-                "start_period": "30s"
+                "interval": "30s",
+                "timeout": "30s",
+                "retries": 15,
+                "start_period": "180s"
             }
         }
 
@@ -174,12 +208,12 @@ class DockerOrchestrator:
 
         # Device-specific environment variables
         if device_type == "nvidia":
-            config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(self.config.docker_config.gpu_devices or ["all"])
+            gpu_devices = getattr(self, '_detected_gpu_devices', self.config.docker_config.gpu_devices or [])
+            config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(gpu_devices)
         elif device_type == "rocm":
             # For AMD ROCm GPUs
-            gpu_devices = self.config.docker_config.gpu_devices or ["all"]
-            if gpu_devices != ["all"]:
-                config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
+            gpu_devices = getattr(self, '_detected_gpu_devices', self.config.docker_config.gpu_devices or [])
+            config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
         elif device_type in ("cpu", "arm"):
             # For CPU-only deployment (including ARM processors)
             config["environment"]["VLLM_ATTENTION_BACKEND"] = "TORCH_SDPA"
@@ -233,7 +267,8 @@ class DockerOrchestrator:
                 f"{cache_dir}:/root/.cache/huggingface"
             ],
             "environment": {
-                "HF_HOME": "/root/.cache/huggingface"
+                "HF_HOME": "/root/.cache/huggingface",
+                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO")
             },
             "command": benchmark_args,
             "depends_on": {
@@ -442,13 +477,20 @@ class DockerOrchestrator:
             raise RuntimeError("Docker compose not initialized")
 
         log.info("Starting Docker containers...")
+        log.debug(f"Using compose file: {self.compose_file}")
+        log.debug(f"Working directory: {self.temp_dir}")
 
+        log.debug("Running docker compose up command...")
         result = subprocess.run(
             ["docker", "compose", "-f", str(self.compose_file), "up", "-d"],
             capture_output=True,
             text=True,
             cwd=self.temp_dir
         )
+
+        log.debug(f"Docker compose command return code: {result.returncode}")
+        log.debug(f"Docker compose stdout: {result.stdout}")
+        log.debug(f"Docker compose stderr: {result.stderr}")
 
         if result.returncode != 0:
             log.error(f"Docker compose failed with return code {result.returncode}")
@@ -564,6 +606,30 @@ class DockerOrchestrator:
             return
 
         log.info("Getting container logs for debugging...")
+
+        # First check container status
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--filter", "name=vllm-server", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            log.debug(f"vLLM container status: {result.stdout}")
+        except Exception as e:
+            log.warning(f"Could not get container status: {e}")
+
+        # Check container health
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "vllm-server", "--format", "{{.State.Health.Status}}"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            log.debug(f"vLLM container health: {result.stdout.strip()}")
+        except Exception as e:
+            log.warning(f"Could not get container health: {e}")
 
         # Get logs from vllm-server container
         try:
