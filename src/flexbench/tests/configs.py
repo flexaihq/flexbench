@@ -2,7 +2,6 @@ MODEL_PATH = "HuggingFaceTB/SmolLM2-135M-Instruct"
 
 # Only include parameters that are always valid for all scenarios
 BASE_CONFIG = {
-    "task": "text",
     "model_path": MODEL_PATH,
     "api_server": "http://localhost:8000",
     "dataset_path": "ctuning/MLPerf-OpenOrca",

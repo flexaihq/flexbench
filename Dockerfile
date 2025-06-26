@@ -18,7 +18,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Copy the flexbench module for installation
-COPY src/ ./src/
+COPY src/flexbench/ ./src/flexbench/
 
 # Create virtual environment and install the flexbench module
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -27,9 +27,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Add venv to PATH
 ENV PATH="/app/.venv/bin:$PATH"
-
-# Set FlexBench module environment variables
-ENV LOG_LEVEL=DEBUG
 
 # Health check for FlexBench module readiness
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

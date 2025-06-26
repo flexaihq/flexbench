@@ -1,12 +1,14 @@
 import asyncio
 import json
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import aiohttp
 
-from flexbench.runners.base import BaseBackend, BenchmarkConfig
+from flexbench.config import BenchmarkConfig
+from flexbench.runners.base import BaseBackend
 from flexbench.utils import get_logger
 
 

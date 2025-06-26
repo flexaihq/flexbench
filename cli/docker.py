@@ -290,9 +290,8 @@ class DockerOrchestrator:
 
         args = [
             "python", "-m", "flexbench",
-            "--task", config.task,
             "--model-path", config.model_path,
-            "--api-server", config.api_server,
+            "--api-server", f"http://vllm-server:{self.config.docker_config.vllm_port}",
             "--scenario", config.scenario,
             "--dataset-path", config.dataset_config.path,
             "--dataset-input-column", config.dataset_config.input_column,
@@ -309,9 +308,6 @@ class DockerOrchestrator:
 
         if config.dataset_config.system_prompt_column:
             args.extend(["--dataset-system-prompt-column", config.dataset_config.system_prompt_column])
-
-        if config.dataset_config.image_column:
-            args.extend(["--dataset-image-column", config.dataset_config.image_column])
 
         if config.dataset_config.split != "train":
             args.extend(["--dataset-split", config.dataset_config.split])

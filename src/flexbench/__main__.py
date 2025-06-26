@@ -1,6 +1,7 @@
+"""Entry point for python -m flexbench execution."""
+
 import os
 from pathlib import Path
-
 from flexbench.main import main
 
 if __name__ == "__main__":

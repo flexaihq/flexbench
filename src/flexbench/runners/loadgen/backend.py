@@ -2,6 +2,7 @@ import array
 import json
 import os
 import queue
+import sys
 import threading
 from pathlib import Path
 
@@ -9,7 +10,8 @@ import mlperf_loadgen as lg
 import numpy as np
 import urllib3
 
-from flexbench.runners.base import BaseBackend, BenchmarkConfig
+from flexbench.config import BenchmarkConfig
+from flexbench.runners.base import BaseBackend
 from flexbench.utils import get_logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -184,7 +186,7 @@ class LoadGenBackend(BaseBackend):
     def __init__(self, config: BenchmarkConfig, results_dir: Path):
         super().__init__(config)
         self.results_dir = results_dir
-        self.task_type = config.task
+        self.task_type = "text"  # Only text tasks supported now
         self.scenario = config.scenario
 
         if self.scenario == "SingleStream":

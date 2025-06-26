@@ -10,8 +10,9 @@ from pathlib import Path
 
 import mlperf_loadgen as lg
 
+from flexbench.config import BenchmarkConfig
 from flexbench.accuracy_check import run_accuracy_check
-from flexbench.runners.base import BaseRunner, BenchmarkConfig
+from flexbench.runners.base import BaseRunner
 from flexbench.runners.loadgen.backend import LoadGenBackend
 from flexbench.utils import get_logger
 
@@ -250,8 +251,6 @@ class LoadGenRunner(BaseRunner):
                 sys.executable,
                 "-m",
                 "flexbench",
-                "--task",
-                self.config.task,
                 "--model-path",
                 self.config.model_path,
                 "--api-server",
@@ -277,11 +276,6 @@ class LoadGenRunner(BaseRunner):
                         "--dataset-system-prompt-column",
                         self.config.dataset_config.system_prompt_column,
                     ]
-                )
-
-            if self.config.dataset_config.image_column:
-                cmd.extend(
-                    ["--dataset-image-column", self.config.dataset_config.image_column]
                 )
 
             if self.config.dataset_config.split:

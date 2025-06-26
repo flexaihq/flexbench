@@ -7,10 +7,12 @@ import evaluate
 import nltk
 import numpy as np
 import pandas as pd
+import sys
+from pathlib import Path
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from flexbench.dataset.base import DatasetConfig
+from flexbench.config import DatasetConfig
 from flexbench.dataset.text import TextDataset
 from flexbench.utils import get_logger
 

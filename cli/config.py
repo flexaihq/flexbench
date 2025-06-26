@@ -1,47 +1,17 @@
-"""Docker configuration for FlexBench CLI."""
+"""Docker configuration for FlexBench CLI (text-only)."""
 
+import typing as tp
 from dataclasses import dataclass
-from typing import Literal
+import sys
+from pathlib import Path
 
+# Add src directory to path for flexbench imports
+src_path = Path(__file__).parent.parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
-@dataclass
-class DatasetConfig:
-    """Dataset configuration for benchmark runs."""
-    path: str
-    input_column: str
-    output_column: str | None = None
-    system_prompt_column: str | None = None
-    image_column: str | None = None
-    split: str = "train"
-    accuracy_mode: bool = False
-
-
-@dataclass 
-class BenchmarkConfig:
-    """Configuration for MLPerf benchmark runs."""
-    task: str
-    model_path: str
-    api_server: str
-    dataset_config: DatasetConfig
-    scenario: Literal["Offline", "Server", "SingleStream"]
-    target_qps: float | None = None
-    
-    sweep_mode: bool = False
-    num_sweep_points: int = 10
-    tokenizer_path_override: str | None = None
-    remote_model_path: str | None = None
-    api_token: str | None = None
-    batch_size: int | None = None
-    max_generated_tokens: int | None = None
-    max_input_tokens: int | None = None
-    fixed_input_length: bool = False
-    accuracy: bool = False
-    total_sample_count: int | None = None
-    model_name: str = "llama2-70b"
-    config_path: str = "user.conf"
-    enable_trace: bool = False
-    log_output_to_stdout: bool = True
-    output_dir: str | None = None
+# Import the main configs from flexbench
+from flexbench.config import DatasetConfig, BenchmarkConfig, create_dataset_config, create_benchmark_config
 
 
 @dataclass
@@ -79,16 +49,11 @@ class DockerConfig:
     flexbench_memory_limit: str | None = None
 
     @property
-    def needs_build_from_source(self) -> bool:
-        """Check if we need to build vLLM from source."""
-        return self.device_type != "nvidia"
-
-    @property
     def vllm_dockerfile(self) -> str:
         """Get the appropriate Dockerfile for the device type."""
         dockerfile_map = {
             "nvidia": "Dockerfile",
-            "cpu": "Dockerfile.cpu",
+            "cpu": "Dockerfile.cpu", 
             "rocm": "Dockerfile.rocm",
             "arm": "Dockerfile.cpu",  # ARM uses CPU dockerfile as fallback
         }
@@ -99,6 +64,12 @@ class DockerConfig:
         """Get the custom image name when building from source."""
         return f"vllm-{self.device_type}:latest"
 
+    @property
+    def needs_build_from_source(self) -> bool:
+        """Check if vLLM needs to be built from source for this device type."""
+        # Only NVIDIA uses published images, others need to build from source
+        return self.device_type != "nvidia"
+
     def __post_init__(self):
         if self.gpu_devices and self.gpu_count:
             if len(self.gpu_devices) != self.gpu_count:
@@ -106,7 +77,7 @@ class DockerConfig:
                     f"gpu_devices length ({len(self.gpu_devices)}) must match gpu_count ({self.gpu_count})"
                 )
 
-        # Parse build args string into dict
+        # Parse build args string into dict if it's a string
         if isinstance(self.vllm_build_args, str):
             build_args = {}
             for arg in self.vllm_build_args.split():
@@ -132,60 +103,10 @@ class FlexBenchDockerConfig:
     build_flexbench: bool = True  # Build flexbench image if needed
     wait_timeout: int = 300  # Timeout for container startup (seconds)
 
-    def __post_init__(self):
-        # Override api_server to use Docker network
-        self.benchmark_config.api_server = (
-            f"http://vllm-server:{self.docker_config.vllm_port}"
-        )
-
-
-def create_dataset_config(args) -> DatasetConfig:
-    """Create DatasetConfig from parsed arguments."""
-    return DatasetConfig(
-        path=args.dataset_path,
-        input_column=args.dataset_input_column,
-        output_column=getattr(args, 'dataset_output_column', None),
-        system_prompt_column=getattr(args, 'dataset_system_prompt_column', None),
-        image_column=getattr(args, 'dataset_image_column', None),
-        split=getattr(args, 'dataset_split', 'train'),
-        accuracy_mode=getattr(args, 'accuracy', False),
-    )
-
-
-def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -> BenchmarkConfig:
-    """Create BenchmarkConfig from parsed arguments."""
-    
-    if dataset_config is None:
-        dataset_config = create_dataset_config(args)
-    
-    remote_model_path = getattr(args, 'remote_model_path', None) or args.model_path
-
-    return BenchmarkConfig(
-        task=args.task,
-        model_path=args.model_path,
-        remote_model_path=remote_model_path,
-        tokenizer_path_override=getattr(args, 'tokenizer_path_override', None),
-        api_server=getattr(args, 'api_server', 'http://localhost:8000'),
-        api_token=getattr(args, 'api_token', None),
-        dataset_config=dataset_config,
-        scenario=args.scenario,
-        target_qps=getattr(args, 'target_qps', None),
-        sweep_mode=getattr(args, 'sweep', False),
-        num_sweep_points=getattr(args, 'num_points', 10),
-        batch_size=getattr(args, 'batch_size', None),
-        max_generated_tokens=getattr(args, 'max_generated_tokens', None),
-        max_input_tokens=getattr(args, 'max_input_tokens', None),
-        fixed_input_length=getattr(args, 'fixed_input_length', False),
-        accuracy=getattr(args, 'accuracy', False),
-        total_sample_count=getattr(args, 'total_sample_count', None),
-        output_dir=args.output_dir,
-    )
-
-
-def create_docker_config_from_args(args) -> FlexBenchDockerConfig:
+def create_flexbench_config_from_args(args) -> FlexBenchDockerConfig:
     """Create FlexBenchDockerConfig from parsed CLI arguments."""
 
-    # Create BenchmarkConfig using CLI builder
+    # Create BenchmarkConfig using flexbench config builder
     benchmark_config = create_benchmark_config(args)
 
     # Parse vLLM build args if provided
@@ -205,19 +126,17 @@ def create_docker_config_from_args(args) -> FlexBenchDockerConfig:
     # Create DockerConfig with CLI-specific options
     docker_config = DockerConfig(
         vllm_image=vllm_image,
-        flexbench_image=getattr(args, "flexbench_image", DockerConfig.flexbench_image),
+        flexbench_image=getattr(args, "flexbench_image", "flexbench:latest"),
         device_type=device_type,
         gpu_devices=getattr(args, "gpu_devices", None),
         gpu_count=getattr(args, "gpu_count", None),
-        vllm_repo=getattr(args, "vllm_repo", DockerConfig.vllm_repo),
-        vllm_branch=getattr(args, "vllm_branch", DockerConfig.vllm_branch),
+        vllm_repo=getattr(args, "vllm_repo", "https://github.com/vllm-project/vllm.git"),
+        vllm_branch=getattr(args, "vllm_branch", "main"),
         vllm_build_args=vllm_build_args,
-        vllm_port=getattr(args, "vllm_port", DockerConfig.vllm_port),
-        vllm_max_model_len=getattr(
-            args, "vllm_max_model_len", DockerConfig.vllm_max_model_len
-        ),
+        vllm_port=getattr(args, "vllm_port", 8000),
+        vllm_max_model_len=getattr(args, "vllm_max_model_len", 2048),
         model_cache_dir=getattr(args, "model_cache_dir", None),
-        results_dir=args.output_dir,
+        results_dir=getattr(args, "output_dir", None),
         vllm_memory_limit=getattr(args, "vllm_memory_limit", None),
         flexbench_memory_limit=getattr(args, "flexbench_memory_limit", None),
     )

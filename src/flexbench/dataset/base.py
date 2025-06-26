@@ -6,25 +6,11 @@ from pathlib import Path
 from tqdm import tqdm
 
 from flexbench.utils import get_logger
+from flexbench.config import DatasetConfig
 
 log = get_logger(__name__)
 
 
-@dataclass
-class DatasetConfig:
-    """Configuration for dataset loading and column mapping."""
-
-    path: str
-    input_column: str
-    output_column: str | None = None
-    system_prompt_column: str | None = None
-    image_column: str | None = None
-    split: str = "train"
-    accuracy_mode: bool = False
-
-    def __post_init__(self):
-        if self.accuracy_mode and not self.output_column:
-            raise ValueError("output_column is required when running in accuracy mode")
 
 
 @dataclass

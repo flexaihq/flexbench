@@ -5,8 +5,8 @@ import logging
 import os
 import sys
 
-from cli.args import create_cli_parser, validate_args
-from cli.config import create_docker_config_from_args
+from cli.args import app
+from cli.config import create_flexbench_config_from_args
 from cli.docker import DockerOrchestrator, _check_docker_available
 from cli.utils import get_logger, setup_logging
 
@@ -15,29 +15,19 @@ setup_logging()
 log = get_logger(__name__)
 
 
-async def async_main() -> int:
-    """Main async CLI function."""
+async def run_benchmark_async(config, dry_run: bool = False) -> int:
+    """Run the benchmark with the given configuration."""
     try:
-        # Parse and validate arguments
-        parser = create_cli_parser()
-        args = parser.parse_args()
-        args = validate_args(args)
-        
         log.info("FlexBench CLI starting...")
         log.debug(f"Log level set to: {os.getenv('LOG_LEVEL', 'INFO')}")
-        log.info(f"Arguments: {vars(args)}")
         if log.isEnabledFor(logging.DEBUG):
             log.debug("Debug logging enabled")
         
         # Check for dry run
-        if getattr(args, 'dry_run', False):
+        if dry_run:
             log.info("Dry run mode - showing configuration without running")
-            config = create_docker_config_from_args(args)
             log.info(f"Docker config: {config}")
             return 0
-        
-        # Create configuration
-        config = create_docker_config_from_args(args)
         
         # Check Docker availability
         await _check_docker_available()
@@ -61,7 +51,15 @@ async def async_main() -> int:
 
 def main() -> int:
     """Main CLI entry point."""
-    return asyncio.run(async_main())
+    try:
+        # Use typer to run the app
+        app(prog_name="flexbench")
+        return 0
+    except SystemExit as e:
+        return e.code or 0
+    except Exception as e:
+        log.error(f"CLI failed: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":

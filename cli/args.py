@@ -1,358 +1,219 @@
-"""CLI-specific argument parser for FlexBench CLI."""
+"""Typer CLI for FlexBench Docker orchestration."""
 
-import argparse
-from datetime import datetime
+import typer
+import asyncio
+from enum import Enum
+from typing_extensions import Annotated
 
+"""
+🚀 Run FlexBench text benchmarking with Docker orchestration.
 
-def create_cli_parser() -> argparse.ArgumentParser:
-    """Create argument parser for CLI usage."""
-    parser = argparse.ArgumentParser(
-        description="FlexBench CLI - Containerized benchmarking with vLLM and FlexBench",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Device Types:
-  cpu:    Builds vLLM from source using Dockerfile.cpu (~10-20 min first run)
-          No GPU drivers required, runs on any CPU system (DEFAULT)
-  nvidia: Uses published vllm/vllm-openai:latest (fastest setup, best performance)
-          Requires NVIDIA GPU drivers and nvidia-container-toolkit
-  rocm:   Builds vLLM from source using Dockerfile.rocm (~15-30 min first run)
-          Requires AMD GPU with ROCm drivers and rocm-container-toolkit
-  arm:    Builds vLLM from source using Dockerfile.arm (~15-30 min first run)
-          Requires Apple Silicon/ARM64 architecture
+This command orchestrates vLLM and FlexBench containers to run MLPerf-style 
+text generation benchmarks with automatic hardware detection and optimization.
 
-Examples:
-  # CPU-only systems (default) - builds vLLM from source (~10-20 min first run)
-  flexbench-cli --task text --model-path HuggingFaceTB/SmolLM2-135M-Instruct \\
-            --scenario Server --target-qps 5 \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question
+**Examples:**
 
-  # NVIDIA GPUs - instant startup with published image
-  flexbench-cli --task text --model-path meta-llama/Llama-2-7b-chat-hf \\
-            --scenario Server --target-qps 10 \\
-            --device-type nvidia \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question \\
-            --gpu-devices 0,1
+```bash
+# Basic CPU benchmark
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
 
-  # AMD ROCm GPUs - builds vLLM from source (~15-30 min first run)
-  flexbench-cli --task text --model-path microsoft/DialoGPT-medium \\
-            --scenario Server --target-qps 8 \\
-            --device-type rocm --gpu-devices 0,1 \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question
+# GPU benchmark with environment variables
+export FLEXBENCH_DEVICE_TYPE=nvidia
+export FLEXBENCH_GPU_DEVICES="0,1"
+flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
+```
+"""
 
-  # Apple Silicon/ARM64 - builds vLLM from source (~15-30 min first run)
-  flexbench-cli --task text --model-path meta-llama/Llama-2-7b-chat-hf \\
-            --scenario Server --target-qps 10 \\
-            --device-type arm \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question
-
-  # CPU with custom build args (disable AVX512 for older CPUs)
-  flexbench-cli --task text --model-path HuggingFaceTB/SmolLM2-135M-Instruct \\
-            --scenario Offline --batch-size 4 \\
-            --device-type cpu \\
-            --vllm-build-args 'VLLM_CPU_DISABLE_AVX512=true' \\
-            --dataset-path ctuning/MLPerf-OpenOrca \\
-            --dataset-input-column question \\
-            --no-cleanup
-
-ROCm GPU Architecture Detection:
-  To find your GPU architecture: rocminfo | grep 'Name:' | grep 'gfx'
-  Common architectures:
-    gfx906  (Radeon VII, MI50)
-    gfx908  (MI100)
-    gfx90a  (MI210, MI250)
-    gfx1100 (RX 7900 series)
-  Then use: --vllm-build-args 'PYTORCH_ROCM_ARCH=gfx1100'
-
-Performance Tips:
-  CPU:    Use smaller models, increase batch size, consider --vllm-build-args 'VLLM_CPU_DISABLE_AVX512=true' for older CPUs
-  ROCm:   Set PYTORCH_ROCM_ARCH correctly, use tensor parallelism: --gpu-devices 0,1
-  NVIDIA: Enable tensor parallelism for large models: --gpu-devices 0,1,2,3
-
-Debugging:
-  LOG_LEVEL=DEBUG flexbench ...  Enable verbose debug logging
-  --no-cleanup             Keep containers after run for inspection
-  --no-pull                Skip image pull/build (use existing images)
-  --dry-run                Show configuration without running
-  docker logs vllm-server  Check vLLM server logs if startup fails
-  docker logs flexbench-runner  Check benchmark execution logs
-        """
-    )
-    add_benchmark_arguments(parser)
-    add_docker_arguments(parser)
-    add_cli_arguments(parser)
-    return parser
+class DeviceType(str, Enum):
+    cpu = "cpu"
+    nvidia = "nvidia"
+    rocm = "rocm"
+    arm = "arm"
 
 
-def add_benchmark_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add core benchmark arguments."""
+# Create the Docker orchestration CLI app
+app = typer.Typer(
+    help="FlexBench - Docker orchestration for MLPerf-style text benchmarking",
+    epilog="""
+🐳 **Docker orchestration:** This CLI automatically manages vLLM and FlexBench containers.
+� **Text-only tasks:** Only text generation and completion tasks are supported.
+    """,
+    rich_markup_mode="markdown"
+)
+
+
+@app.command()
+def run(
+    # Core FlexBench arguments (text-only)
+    model_path: str = typer.Option(..., help="Model name on HuggingFace or local path"),
+    dataset_path: str = typer.Option(..., help="Dataset path on HuggingFace or local pickle file"),
+    dataset_input_column: str = typer.Option(..., help="Input text column name in dataset"),
+    scenario: str = typer.Option(..., help="MLPerf scenario: Offline, Server, or SingleStream"),
     
-    # Required arguments
-    parser.add_argument(
-        "--task",
-        choices=["text", "vision"],
-        required=True,
-        help="Task type (text or vision)",
-    )
-    parser.add_argument(
-        "--model-path",
-        required=True,
-        help="Model name on HuggingFace or local path",
-    )
-    parser.add_argument(
-        "--dataset-path",
-        required=True,
-        help="Dataset path on HuggingFace or local pickle file",
-    )
-    parser.add_argument(
-        "--dataset-input-column",
-        required=True,
-        help="Input text column name in dataset",
-    )
-    parser.add_argument(
-        "--scenario",
-        choices=["Offline", "Server", "SingleStream"],
-        required=True,
-        help="MLPerf scenario (Offline, Server, or SingleStream)",
-    )
-
-    # Optional core arguments
-    parser.add_argument(
-        "--remote-model-path",
-        help="Model name used to serve the model at the remote endpoint",
-    )
-    parser.add_argument(
-        "--target-qps",
-        type=float,
-        help="Target queries per second",
-    )
-    parser.add_argument(
-        "--sweep",
-        action="store_true",
-        help="Run sweep mode: first find max QPS, then sweep different QPS values",
-    )
-    parser.add_argument(
-        "--num-points",
-        type=int,
-        default=10,
-        help="Number of QPS points to test in sweep mode (default: 10)",
-    )
-    parser.add_argument(
-        "--backend",
-        choices=["loadgen", "vllm"],
-        default="loadgen",
-        help="Benchmark backend (default: loadgen)",
-    )
-
-    # Dataset arguments
-    parser.add_argument(
-        "--dataset-output-column",
-        help="Reference text column name in dataset (required for accuracy mode)",
-    )
-    parser.add_argument(
-        "--accuracy",
-        action="store_true",
-        help="Run accuracy evaluation (default: performance mode)",
-    )
-    parser.add_argument(
-        "--dataset-split",
-        default="train",
-        help="Dataset split to use (default: train)",
-    )
-    parser.add_argument(
-        "--dataset-system-prompt-column",
-        help="System prompt column name",
-    )
-    parser.add_argument(
-        "--dataset-image-column",
-        help="Image column name (required for vision tasks)",
-    )
-
-    # Model and tokenizer arguments
-    parser.add_argument(
-        "--tokenizer-path-override",
-        help="Custom tokenizer path if different from model",
-    )
-    parser.add_argument(
-        "--api-token",
-        help="API authentication token",
-    )
-
-    # Performance arguments
-    parser.add_argument(
-        "--total-sample-count",
-        type=int,
-        help="Number of samples to process",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="Batch size for offline scenario",
-    )
-    parser.add_argument(
-        "--max-generated-tokens",
-        type=int,
-        default=1024,
-        help="Maximum tokens to generate (default: 1024)",
-    )
-    parser.add_argument(
-        "--max-input-tokens",
-        type=int,
-        help="Maximum number of tokens for input. Longer inputs will be truncated.",
-    )
-    parser.add_argument(
-        "--fixed-input-length",
-        action="store_true",
-        help="Pad inputs to reach exactly max-input-tokens (padding on right side)",
-    )
-    parser.add_argument(
-        "--output-dir",
-        help="Directory to store benchmark results",
-    )
-
-
-def add_docker_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add Docker-specific arguments for CLI."""
+    # Core benchmark options
+    remote_model_path: str | None = typer.Option(None, help="Model name for remote endpoint"),
+    target_qps: float | None = typer.Option(None, help="Target queries per second"),
+    sweep: bool = typer.Option(False, help="Run sweep mode: find max QPS then sweep different values"),
+    num_points: int = typer.Option(10, help="Number of QPS points to test in sweep mode"),
+    backend: str = typer.Option("loadgen", help="Benchmark backend: loadgen or vllm"),
     
-    docker_group = parser.add_argument_group("Docker Configuration")
+    # Dataset options (text-only)
+    dataset_output_column: str | None = typer.Option(None, help="Reference text column (required for accuracy mode)"),
+    accuracy: bool = typer.Option(False, help="Run accuracy evaluation"),
+    dataset_split: str = typer.Option("train", help="Dataset split to use"),
+    dataset_system_prompt_column: str | None = typer.Option(None, help="System prompt column name"),
     
-    docker_group.add_argument(
-        "--vllm-image",
-        default="vllm/vllm-openai:latest",
-        help="vLLM Docker image to use (default: vllm/vllm-openai:latest)",
-    )
-    docker_group.add_argument(
-        "--flexbench-image", 
-        default="flexbench:latest",
-        help="FlexBench Docker image to use (default: flexbench:latest)",
-    )
+    # Model and tokenizer options
+    tokenizer_path_override: str | None = typer.Option(None, help="Custom tokenizer path"),
+    api_token: str | None = typer.Option(None, help="API authentication token"),
     
-    # Device type configuration
-    docker_group.add_argument(
-        "--device-type",
-        choices=["cpu", "nvidia", "rocm", "arm"],
-        default="cpu",
-        help="""Hardware device type (default: cpu):
-  cpu:    Builds from source using Dockerfile.cpu (~10-20 min, no GPU drivers needed)
-  nvidia: Uses published vllm/vllm-openai:latest image (instant startup, requires NVIDIA GPU)
-  rocm:   Builds from source using Dockerfile.rocm (~15-30 min, for AMD GPUs)
-  arm:    Builds from source using Dockerfile.arm (~15-30 min, for Apple Silicon/ARM64)""",
-    )
-
+    # Performance options
+    total_sample_count: int | None = typer.Option(None, help="Number of samples to process"),
+    batch_size: int | None = typer.Option(None, help="Batch size for offline scenario"),
+    max_generated_tokens: int = typer.Option(1024, help="Maximum tokens to generate"),
+    max_input_tokens: int | None = typer.Option(None, help="Maximum input tokens (longer inputs truncated)"),
+    fixed_input_length: bool = typer.Option(False, help="Pad inputs to max-input-tokens"),
+    output_dir: str | None = typer.Option(None, help="Directory to store results"),
+    
+    # Docker-specific configuration
+    vllm_image: str = typer.Option("vllm/vllm-openai:latest", help="vLLM Docker image"),
+    flexbench_image: str = typer.Option("flexbench:latest", help="FlexBench Docker image"),
+    device_type: DeviceType = typer.Option(DeviceType.cpu, help="Hardware device type"),
+    
     # GPU configuration
-    gpu_group = docker_group.add_mutually_exclusive_group()
-    gpu_group.add_argument(
-        "--gpu-devices",
-        help="Comma-separated list of GPU device IDs to use (e.g., '0,1,2')",
-    )
-    gpu_group.add_argument(
-        "--gpu-count",
-        type=int,
-        help="Number of GPUs to use (will use first N GPUs)",
-    )
+    gpu_devices: str | None = typer.Option(None, help="Comma-separated GPU device IDs (e.g., '0,1,2')"),
+    gpu_count: int | None = typer.Option(None, help="Number of GPUs to use (first N GPUs)"),
     
     # vLLM configuration
-    docker_group.add_argument(
-        "--vllm-port",
-        type=int,
-        default=8000,
-        help="Port for vLLM server (default: 8000)",
-    )
-    docker_group.add_argument(
-        "--vllm-max-model-len",
-        type=int,
-        default=2048,
-        help="Maximum model length for vLLM (default: 2048)",
-    )
-    
-    # Volume mounts
-    docker_group.add_argument(
-        "--model-cache-dir",
-        help="Host directory to mount for model cache (speeds up subsequent runs)",
-    )
-    
-    # Resource limits
-    docker_group.add_argument(
-        "--vllm-memory-limit",
-        help="Memory limit for vLLM container (e.g., '8g', '16g')",
-    )
-    docker_group.add_argument(
-        "--flexbench-memory-limit", 
-        help="Memory limit for FlexBench container (e.g., '4g', '8g')",
-    )
+    vllm_port: int = typer.Option(8000, help="Port for vLLM server"),
+    vllm_max_model_len: int = typer.Option(2048, help="Maximum model length"),
+    model_cache_dir: Annotated[str | None, typer.Option(
+        help="Model cache directory",
+        envvar="HF_HOME"
+    )] = None,
+    vllm_memory_limit: str | None = typer.Option(None, help="vLLM memory limit (e.g., '8g')"),
+    flexbench_memory_limit: str | None = typer.Option(None, help="FlexBench memory limit (e.g., '4g')"),
     
     # Build configuration
-    docker_group.add_argument(
-        "--vllm-repo",
-        default="https://github.com/vllm-project/vllm.git",
-        help="vLLM repository URL for source builds (default: official repo)",
+    vllm_repo: str = typer.Option("https://github.com/vllm-project/vllm.git", help="vLLM repository URL"),
+    vllm_branch: str = typer.Option("main", help="vLLM branch/tag to build"),
+    vllm_build_args: str | None = typer.Option(None, help="Additional vLLM build arguments"),
+    
+    # CLI configuration
+    no_cleanup: bool = typer.Option(False, help="Don't clean up containers (useful for debugging)"),
+    no_pull: bool = typer.Option(False, help="Don't pull latest Docker images"),
+    no_build: bool = typer.Option(False, help="Don't build FlexBench image"),
+    wait_timeout: int = typer.Option(300, help="Container startup timeout (seconds)"),
+    compose_file: str | None = typer.Option(None, help="Custom docker-compose.yml path"),
+    dry_run: bool = typer.Option(False, help="Show config without running"),
+):
+    """
+    🚀 Run FlexBench benchmarking with Docker orchestration.
+    
+    This command orchestrates vLLM and FlexBench containers to run MLPerf-style 
+    benchmarks on language models with automatic hardware detection and optimization.
+    
+    **Examples:**
+    
+    ```bash
+    # Basic CPU benchmark
+    flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
+    
+    # GPU benchmark with environment variables
+    export FLEXBENCH_DEVICE_TYPE=nvidia
+    export FLEXBENCH_GPU_DEVICES="0,1"
+    flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
+    ```
+    """
+    
+    # Validate mutually exclusive GPU options
+    if gpu_devices and gpu_count:
+        typer.echo("❌ Error: Cannot specify both --gpu-devices and --gpu-count", err=True)
+        raise typer.Exit(1)
+    
+    # Parse GPU devices
+    gpu_device_list = None
+    if gpu_devices:
+        gpu_device_list = [device.strip() for device in gpu_devices.split(",")]
+        gpu_count = len(gpu_device_list)
+    
+    # Import here to avoid circular imports
+    from cli.config import (
+        DatasetConfig, BenchmarkConfig, DockerConfig, FlexBenchDockerConfig,
+        create_dataset_config, create_benchmark_config
     )
-    docker_group.add_argument(
-        "--vllm-branch",
-        default="main",
-        help="vLLM branch/tag to build from (default: main)",
+    from cli.main import run_benchmark_async
+    
+    # Create fake args object to use config builders
+    class Args:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+    
+    args = Args(
+        model_path=model_path,
+        dataset_path=dataset_path,
+        dataset_input_column=dataset_input_column,
+        scenario=scenario,
+        remote_model_path=remote_model_path,
+        target_qps=target_qps,
+        sweep=sweep,
+        num_points=num_points,
+        dataset_output_column=dataset_output_column,
+        dataset_system_prompt_column=dataset_system_prompt_column,
+        dataset_split=dataset_split,
+        accuracy=accuracy,
+        tokenizer_path_override=tokenizer_path_override,
+        api_token=api_token,
+        total_sample_count=total_sample_count,
+        batch_size=batch_size,
+        max_generated_tokens=max_generated_tokens,
+        max_input_tokens=max_input_tokens,
+        fixed_input_length=fixed_input_length,
+        output_dir=output_dir,
     )
-    docker_group.add_argument(
-        "--vllm-build-args",
-        help="Additional build arguments for vLLM Docker build (e.g., 'PYTORCH_ROCM_ARCH=gfx1100')",
+    
+    # Create benchmark config
+    benchmark_config = create_benchmark_config(args)
+    
+    # Create docker config
+    docker_config = DockerConfig(
+        vllm_image=vllm_image,
+        flexbench_image=flexbench_image,
+        device_type=device_type.value,
+        gpu_devices=gpu_device_list,
+        gpu_count=gpu_count,
+        vllm_repo=vllm_repo,
+        vllm_branch=vllm_branch,
+        vllm_build_args=vllm_build_args,
+        vllm_port=vllm_port,
+        vllm_max_model_len=vllm_max_model_len,
+        model_cache_dir=model_cache_dir,
+        results_dir=output_dir,
+        vllm_memory_limit=vllm_memory_limit,
+        flexbench_memory_limit=flexbench_memory_limit,
     )
+    
+    # Create complete config
+    config = FlexBenchDockerConfig(
+        benchmark_config=benchmark_config,
+        docker_config=docker_config,
+        cleanup=not no_cleanup,
+        pull_images=not no_pull,
+        build_flexbench=not no_build,
+        wait_timeout=wait_timeout,
+    )
+    
+    # Run the async benchmark function
+    exit_code = asyncio.run(run_benchmark_async(config, dry_run))
+    if exit_code != 0:
+        raise typer.Exit(exit_code)
 
 
-def add_cli_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add CLI-specific arguments."""
-    
-    cli_group = parser.add_argument_group("CLI Configuration")
-    
-    cli_group.add_argument(
-        "--no-cleanup",
-        action="store_true",
-        help="Don't clean up containers after benchmark (useful for debugging)",
-    )
-    cli_group.add_argument(
-        "--no-pull",
-        action="store_true", 
-        help="Don't pull latest Docker images before running",
-    )
-    cli_group.add_argument(
-        "--no-build",
-        action="store_true",
-        help="Don't build FlexBench image (assume it exists)",
-    )
-    cli_group.add_argument(
-        "--wait-timeout",
-        type=int,
-        default=300,
-        help="Timeout in seconds to wait for containers to start (default: 300)",
-    )
-    cli_group.add_argument(
-        "--compose-file",
-        help="Path to custom docker-compose.yml file",
-    )
-    cli_group.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without actually running containers",
-    )
+def main():
+    """Main entry point for FlexBench Docker CLI."""
+    app(prog_name="flexbench")
 
 
-def validate_args(args):
-    """Validate and transform arguments."""
-    
-    # Process GPU devices for CLI
-    if hasattr(args, 'gpu_devices') and args.gpu_devices:
-        args.gpu_devices = [device.strip() for device in args.gpu_devices.split(",")]
-        args.gpu_count = len(args.gpu_devices)
-    
-    # Set default output directory
-    if not args.output_dir:
-        args.output_dir = f"results/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    
-    # Set model cache dir default for CLI
-    if hasattr(args, 'model_cache_dir') and not args.model_cache_dir:
-        import os
-        args.model_cache_dir = os.path.expanduser("~/.cache/huggingface")
-    
-    return args
+if __name__ == "__main__":
+    main()

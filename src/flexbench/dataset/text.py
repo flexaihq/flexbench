@@ -1,8 +1,11 @@
+import sys
 import textwrap
+from pathlib import Path
 
 from tqdm import tqdm
 
-from flexbench.dataset.base import DatasetConfig, MLPerfDataset
+from flexbench.config import DatasetConfig
+from flexbench.dataset.base import MLPerfDataset
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
