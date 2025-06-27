@@ -4,6 +4,9 @@ import typing as tp
 from dataclasses import dataclass
 import sys
 from pathlib import Path
+from cli.utils import get_logger
+
+log = get_logger(__name__)
 
 # Add src directory to path for flexbench imports
 src_path = Path(__file__).parent.parent / "src"
@@ -30,7 +33,7 @@ class DockerConfig:
     gpu_devices: list[str] | None = None  # e.g., ["0", "1"] for specific GPUs
     gpu_count: int | None = None  # Total GPU count for tensor parallelism
 
-    # vLLM build settings (for non-nvidia devices)
+    # vLLM build settings (only used for ARM)
     vllm_repo: str = "https://github.com/vllm-project/vllm.git"
     vllm_branch: str = "main"
     vllm_build_args: dict[str, str] | None = None  # Additional build arguments
@@ -49,26 +52,9 @@ class DockerConfig:
     flexbench_memory_limit: str | None = None
 
     @property
-    def vllm_dockerfile(self) -> str:
-        """Get the appropriate Dockerfile for the device type."""
-        dockerfile_map = {
-            "nvidia": "Dockerfile",
-            "cpu": "Dockerfile.cpu", 
-            "rocm": "Dockerfile.rocm",
-            "arm": "Dockerfile.cpu",  # ARM uses CPU dockerfile as fallback
-        }
-        return dockerfile_map.get(self.device_type, "Dockerfile")
-
-    @property
-    def custom_vllm_image_name(self) -> str:
-        """Get the custom image name when building from source."""
-        return f"vllm-{self.device_type}:latest"
-
-    @property
     def needs_build_from_source(self) -> bool:
-        """Check if vLLM needs to be built from source for this device type."""
-        # Only NVIDIA uses published images, others need to build from source
-        return self.device_type != "nvidia"
+        """Return True if vLLM must be built from source (only for ARM)."""
+        return self.device_type == "arm"
 
     def __post_init__(self):
         if self.gpu_devices and self.gpu_count:
@@ -86,6 +72,23 @@ class DockerConfig:
                     build_args[key] = value
             self.vllm_build_args = build_args
 
+        # Final fallback for vllm_image if None is passed
+        if not self.vllm_image:
+            if self.device_type == "arm":
+                log.warning("No vLLM image specified, falling back to default for ARM: vllm-arm:latest")
+                self.vllm_image = "vllm-arm:latest"
+            elif self.device_type == "nvidia":
+                log.warning("No vLLM image specified, falling back to default for NVIDIA: vllm/vllm-openai:latest")
+                self.vllm_image = "vllm/vllm-openai:latest"
+            elif self.device_type == "cpu":
+                log.warning("No vLLM image specified, falling back to default for CPU: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1")
+                self.vllm_image = "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1"
+            elif self.device_type == "rocm":
+                log.warning("No vLLM image specified, falling back to default for ROCm: rocm/vllm:latest")
+                self.vllm_image = "rocm/vllm:latest"
+            else:
+                log.warning(f"No vLLM image specified, falling back to vllm-{self.device_type}:latest")
+                self.vllm_image = f"vllm-{self.device_type}:latest"
 
 @dataclass
 class FlexBenchDockerConfig:
@@ -103,49 +106,3 @@ class FlexBenchDockerConfig:
     build_flexbench: bool = True  # Build flexbench image if needed
     wait_timeout: int = 300  # Timeout for container startup (seconds)
 
-def create_flexbench_config_from_args(args) -> FlexBenchDockerConfig:
-    """Create FlexBenchDockerConfig from parsed CLI arguments."""
-
-    # Create BenchmarkConfig using flexbench config builder
-    benchmark_config = create_benchmark_config(args)
-
-    # Parse vLLM build args if provided
-    vllm_build_args = getattr(args, "vllm_build_args", None)
-    
-    # Determine device type
-    device_type = getattr(args, "device_type", "cpu")
-    
-    # Set vLLM image based on device type
-    if device_type == "nvidia":
-        # Use published image for NVIDIA
-        vllm_image = getattr(args, "vllm_image", "vllm/vllm-openai:latest")
-    else:
-        # Use custom image name for CPU and ROCm (will be built from source)
-        vllm_image = f"vllm-{device_type}:latest"
-
-    # Create DockerConfig with CLI-specific options
-    docker_config = DockerConfig(
-        vllm_image=vllm_image,
-        flexbench_image=getattr(args, "flexbench_image", "flexbench:latest"),
-        device_type=device_type,
-        gpu_devices=getattr(args, "gpu_devices", None),
-        gpu_count=getattr(args, "gpu_count", None),
-        vllm_repo=getattr(args, "vllm_repo", "https://github.com/vllm-project/vllm.git"),
-        vllm_branch=getattr(args, "vllm_branch", "main"),
-        vllm_build_args=vllm_build_args,
-        vllm_port=getattr(args, "vllm_port", 8000),
-        vllm_max_model_len=getattr(args, "vllm_max_model_len", 2048),
-        model_cache_dir=getattr(args, "model_cache_dir", None),
-        results_dir=getattr(args, "output_dir", None),
-        vllm_memory_limit=getattr(args, "vllm_memory_limit", None),
-        flexbench_memory_limit=getattr(args, "flexbench_memory_limit", None),
-    )
-
-    return FlexBenchDockerConfig(
-        benchmark_config=benchmark_config,
-        docker_config=docker_config,
-        cleanup=not getattr(args, "no_cleanup", False),
-        pull_images=not getattr(args, "no_pull", False),
-        build_flexbench=not getattr(args, "no_build", False),
-        wait_timeout=getattr(args, "wait_timeout", 300),
-    )

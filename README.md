@@ -61,6 +61,7 @@ flexbench \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
+  --target-qps 10 \
   --sweep
 
 # Accuracy evaluation
@@ -69,7 +70,7 @@ flexbench \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
-  --target-qps 5 \
+  --target-qps 10 \
   --accuracy \
   --dataset-output-column response
 
@@ -79,7 +80,7 @@ flexbench \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
-  --target-qps 20 \
+  --target-qps 10 \
   --device-type nvidia \
   --gpu-devices "0,1"
 ```
@@ -132,47 +133,29 @@ For more details on the MLPerf Inference Benchmark and the design of modes and m
 
 ## Device Type Support
 
-FlexBench supports multiple hardware device types with automatic vLLM image management:
+FlexBench automatically selects the correct vLLM image for your hardware:
 
+| Device Type | Default vLLM Image |
+|-------------|--------------------|
+| cpu         | public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1 |
+| nvidia      | vllm/vllm-openai:latest |
+| rocm        | rocm/vllm:latest |
+| arm         | Built from source (Dockerfile.arm) |
+
+**Example usage:**
 ```bash
-# CPU-only systems (default) - builds vLLM from source (~10-20 min build time)
 flexbench \
   --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
-  --target-qps 5 \
-  --device-type cpu \
-  --vllm-memory-limit 32g
-
-# NVIDIA GPUs - uses published vLLM image
-flexbench \
-  --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-  --dataset-path ctuning/MLPerf-OpenOrca \
-  --dataset-input-column question \
-  --scenario Server \
-  --target-qps 10 \
-  --device-type nvidia \
-  --gpu-devices "0,1"
-
-# AMD ROCm GPUs - builds vLLM from source (~15-30 min build time)
-flexbench \
-  --model-path microsoft/DialoGPT-medium \
-  --dataset-path ctuning/MLPerf-OpenOrca \
-  --dataset-input-column question \
-  --scenario Server \
-  --target-qps 8 \
-  --device-type rocm \
-  --vllm-memory-limit 32g \
-  --gpu-devices "0,1" \
-  --vllm-build-args "PYTORCH_ROCM_ARCH=gfx1100"
-```
+  --device-type cpu
 ```
 
-**Device Types:**
-- **`cpu`** (default): Builds from source using [`Dockerfile.cpu`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.cpu) for CPU-only inference
-- **`nvidia`**: Uses published [`vllm/vllm-openai:latest`](https://hub.docker.com/r/vllm/vllm-openai/tags) image
-- **`rocm`**: Builds from source using [`Dockerfile.rocm`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.rocm) for AMD GPUs
+To use a custom vLLM image (for any device except ARM):
+```bash
+flexbench ... --vllm-image myregistry.example.com/mycustom/vllm:mytag
+```
 
 ## GPU Configuration
 
@@ -206,41 +189,6 @@ flexbench \
   --vllm-memory-limit 16g \
   --target-qps 10
 ```
-
-## Environment Variables
-
-FlexBench supports extensive environment variable configuration for streamlined workflows:
-
-```bash
-# Set common defaults
-export FLEXBENCH_MODEL_PATH=HuggingFaceTB/SmolLM2-135M-Instruct
-export FLEXBENCH_DATASET_PATH=ctuning/MLPerf-OpenOrca
-export FLEXBENCH_DEVICE_TYPE=nvidia
-export FLEXBENCH_GPU_DEVICES="0,1"
-export FLEXBENCH_OUTPUT_DIR=./results
-export FLEXBENCH_API_TOKEN=your_hf_token
-
-# Now run with minimal CLI arguments
-flexbench \
-  --dataset-input-column question \
-  --scenario Server \
-  --target-qps 10
-
-# View current configuration
-flexbench config show
-
-# Generate configuration template
-flexbench config template
-```
-
-**Supported Environment Variables:**
-- **Model & Dataset**: `FLEXBENCH_MODEL_PATH`, `FLEXBENCH_DATASET_PATH`, `FLEXBENCH_API_TOKEN`
-- **Performance**: `FLEXBENCH_TARGET_QPS`, `FLEXBENCH_OUTPUT_DIR`
-- **Hardware**: `FLEXBENCH_DEVICE_TYPE`, `FLEXBENCH_GPU_DEVICES`, `FLEXBENCH_GPU_COUNT`
-- **Docker**: `FLEXBENCH_VLLM_IMAGE`, `FLEXBENCH_IMAGE`
-- **Cache**: `FLEXBENCH_MODEL_CACHE_DIR`, `HF_HOME`, `HUGGINGFACE_HUB_CACHE`
-
-Use `flexbench config show` to see all available environment variables and their current values.
 
 ## Key Parameters
 

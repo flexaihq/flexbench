@@ -6,7 +6,6 @@ import os
 import sys
 
 from cli.args import app
-from cli.config import create_flexbench_config_from_args
 from cli.docker import DockerOrchestrator, _check_docker_available
 from cli.utils import get_logger, setup_logging
 

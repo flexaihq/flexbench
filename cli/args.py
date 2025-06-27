@@ -4,6 +4,9 @@ import typer
 import asyncio
 from enum import Enum
 from typing_extensions import Annotated
+from cli.utils import get_logger
+
+log = get_logger(__name__)
 
 """
 🚀 Run FlexBench text benchmarking with Docker orchestration.
@@ -52,7 +55,7 @@ def run(
     
     # Core benchmark options
     remote_model_path: str | None = typer.Option(None, help="Model name for remote endpoint"),
-    target_qps: float | None = typer.Option(None, help="Target queries per second"),
+    target_qps: float = typer.Option(..., help="Target queries per second (required)"),
     sweep: bool = typer.Option(False, help="Run sweep mode: find max QPS then sweep different values"),
     num_points: int = typer.Option(10, help="Number of QPS points to test in sweep mode"),
     backend: str = typer.Option("loadgen", help="Benchmark backend: loadgen or vllm"),
@@ -76,7 +79,10 @@ def run(
     output_dir: str | None = typer.Option(None, help="Directory to store results"),
     
     # Docker-specific configuration
-    vllm_image: str = typer.Option("vllm/vllm-openai:latest", help="vLLM Docker image"),
+    vllm_image: str = typer.Option(
+        None,
+        help="Full vLLM Docker image name (e.g. 'vllm/vllm-openai:latest', 'public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1', 'rocm/vllm:latest'). Overrides default for device type. Highly recommended for reproducibility."
+    ),
     flexbench_image: str = typer.Option("flexbench:latest", help="FlexBench Docker image"),
     device_type: DeviceType = typer.Option(DeviceType.cpu, help="Hardware device type"),
     
@@ -150,7 +156,8 @@ def run(
             for k, v in kwargs.items():
                 setattr(self, k, v)
     
-    args = Args(
+    # Only add vllm_image to Args if it is not None or empty
+    args_kwargs = dict(
         model_path=model_path,
         dataset_path=dataset_path,
         dataset_input_column=dataset_input_column,
@@ -159,10 +166,11 @@ def run(
         target_qps=target_qps,
         sweep=sweep,
         num_points=num_points,
+        backend=backend,
         dataset_output_column=dataset_output_column,
-        dataset_system_prompt_column=dataset_system_prompt_column,
-        dataset_split=dataset_split,
         accuracy=accuracy,
+        dataset_split=dataset_split,
+        dataset_system_prompt_column=dataset_system_prompt_column,
         tokenizer_path_override=tokenizer_path_override,
         api_token=api_token,
         total_sample_count=total_sample_count,
@@ -171,7 +179,29 @@ def run(
         max_input_tokens=max_input_tokens,
         fixed_input_length=fixed_input_length,
         output_dir=output_dir,
+        flexbench_image=flexbench_image,
+        device_type=device_type.value,
+        gpu_devices=gpu_device_list,
+        gpu_count=gpu_count,
+        vllm_repo=vllm_repo,
+        vllm_branch=vllm_branch,
+        vllm_build_args=vllm_build_args,
+        vllm_port=vllm_port,
+        vllm_max_model_len=vllm_max_model_len,
+        model_cache_dir=model_cache_dir,
+        vllm_memory_limit=vllm_memory_limit,
+        flexbench_memory_limit=flexbench_memory_limit,
+        no_cleanup=no_cleanup,
+        no_pull=no_pull,
+        no_build=no_build,
+        wait_timeout=wait_timeout,
+        compose_file=compose_file,
+        dry_run=dry_run,
     )
+    if vllm_image:
+        args_kwargs["vllm_image"] = vllm_image
+    log.debug(f"Args passed to config: {args_kwargs}")
+    args = Args(**args_kwargs)
     
     # Create benchmark config
     benchmark_config = create_benchmark_config(args)
