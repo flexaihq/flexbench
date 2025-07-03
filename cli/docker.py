@@ -248,13 +248,16 @@ class DockerOrchestrator:
             config["group_add"] = ["video", "render"]
         elif vllm_device_type in ("cpu", "arm"):
             # CPU/ARM: set required vLLM CPU env vars (see vLLM docs)
+            # These are required for vLLM to infer device type and run properly
             config["environment"]["VLLM_TARGET_DEVICE"] = "cpu"
             config["environment"].setdefault("VLLM_CPU_KVCACHE_SPACE", "4")
             config["environment"].setdefault("VLLM_CPU_OMP_THREADS_BIND", "auto")
             # Add CPU-specific flags to vLLM server command
             config["command"].extend([
-                "--enforce-eager",                "--disable-custom-all-reduce"            ])
-            # --- Fix: Allow NUMA and thread affinity syscalls in Docker ---
+                "--enforce-eager",  # Disable CUDA graph for CPU
+                "--disable-custom-all-reduce"  # Disable custom kernels for CPU
+            ])
+            # Fix: Allow NUMA and thread affinity syscalls in Docker
             config["privileged"] = True
             config.setdefault("security_opt", []).append("seccomp:unconfined")
             config.setdefault("cap_add", []).append("SYS_NICE")
