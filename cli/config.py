@@ -27,7 +27,7 @@ class DockerConfig:
     network_name: str = "flexbench-network"
 
     # Device configuration
-    device_type: str = "cpu"  # cpu, nvidia, rocm
+    device_type: str = "cpu"  # cpu, cuda, rocm, arm
 
     # GPU settings
     gpu_devices: list[str] | None = None  # e.g., ["0", "1"] for specific GPUs
@@ -53,8 +53,13 @@ class DockerConfig:
 
     @property
     def needs_build_from_source(self) -> bool:
-        """Return True if vLLM must be built from source (only for ARM)."""
+        """Return True if vLLM must be built from source."""
         return self.device_type == "arm"
+
+    @property
+    def custom_vllm_image_name(self) -> str:
+        """Return the custom vLLM image name for building from source."""
+        return f"vllm-{self.device_type}:latest"
 
     def __post_init__(self):
         if self.gpu_devices and self.gpu_count:
@@ -77,8 +82,8 @@ class DockerConfig:
             if self.device_type == "arm":
                 log.warning("No vLLM image specified, falling back to default for ARM: vllm-arm:latest")
                 self.vllm_image = "vllm-arm:latest"
-            elif self.device_type == "nvidia":
-                log.warning("No vLLM image specified, falling back to default for NVIDIA: vllm/vllm-openai:latest")
+            elif self.device_type == "cuda":
+                log.warning("No vLLM image specified, falling back to default for CUDA: vllm/vllm-openai:latest")
                 self.vllm_image = "vllm/vllm-openai:latest"
             elif self.device_type == "cpu":
                 log.warning("No vLLM image specified, falling back to default for CPU: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1")
@@ -87,8 +92,8 @@ class DockerConfig:
                 log.warning("No vLLM image specified, falling back to default for ROCm: rocm/vllm:latest")
                 self.vllm_image = "rocm/vllm:latest"
             else:
-                log.warning(f"No vLLM image specified, falling back to vllm-{self.device_type}:latest")
-                self.vllm_image = f"vllm-{self.device_type}:latest"
+                log.warning(f"No vLLM image specified, falling back to {self.custom_vllm_image_name}")
+                self.vllm_image = self.custom_vllm_image_name
 
 @dataclass
 class FlexBenchDockerConfig:

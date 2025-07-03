@@ -21,7 +21,7 @@ text generation benchmarks with automatic hardware detection and optimization.
 flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
 
 # GPU benchmark with environment variables
-export FLEXBENCH_DEVICE_TYPE=nvidia
+export FLEXBENCH_DEVICE_TYPE=cuda
 export FLEXBENCH_GPU_DEVICES="0,1"
 flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
 ```
@@ -29,7 +29,7 @@ flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPe
 
 class DeviceType(str, Enum):
     cpu = "cpu"
-    nvidia = "nvidia"
+    cuda = "cuda"
     rocm = "rocm"
     arm = "arm"
 
@@ -126,7 +126,7 @@ def run(
     flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
     
     # GPU benchmark with environment variables
-    export FLEXBENCH_DEVICE_TYPE=nvidia
+    export FLEXBENCH_DEVICE_TYPE=cuda
     export FLEXBENCH_GPU_DEVICES="0,1"
     flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
     ```

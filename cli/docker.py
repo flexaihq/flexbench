@@ -112,7 +112,7 @@ class DockerOrchestrator:
 
         # Detect GPU devices first, before creating service configs
         device_type = self.config.docker_config.device_type
-        if device_type == "nvidia":
+        if device_type == "cuda":
             # Get actual GPU devices instead of using "all"
             gpu_devices = self.config.docker_config.gpu_devices
             if not gpu_devices:
@@ -135,9 +135,9 @@ class DockerOrchestrator:
         }
 
         # Add device-specific runtime configuration
-        if device_type == "nvidia":
-            # NVIDIA GPU configuration - use already detected GPU devices
-            compose_config["services"]["vllm-server"]["ipc"] = "host"  # Needed for NVIDIA containers
+        if device_type == "cuda":
+            # CUDA GPU configuration - use already detected GPU devices
+            compose_config["services"]["vllm-server"]["ipc"] = "host"  # Needed for CUDA containers
             compose_config["services"]["vllm-server"]["deploy"] = {
                 "resources": {
                     "reservations": {
@@ -174,12 +174,10 @@ class DockerOrchestrator:
     def _get_vllm_service_config(self, cache_dir: Path) -> dict[str, Any]:
         """
         Get vLLM service configuration for docker-compose.
-        This method sets up the vLLM container for different device types (NVIDIA, ROCm, CPU, ARM),
+        This method sets up the vLLM container for different device types (CUDA, ROCm, CPU, ARM),
         applying the correct environment variables and command-line arguments as required by vLLM and hardware.
         """
         device_type = self.config.docker_config.device_type
-        # Map 'nvidia' to 'cuda' for vLLM compatibility
-        vllm_device_type = 'cuda' if device_type == 'nvidia' else device_type
 
         # --- Base vLLM container config (common to all devices) ---
         config = {
@@ -216,7 +214,7 @@ class DockerOrchestrator:
         ]
 
         # --- Device-specific configuration ---
-        if vllm_device_type == "cuda":
+        if device_type == "cuda":
             # CUDA GPU: set CUDA_VISIBLE_DEVICES and tensor parallel if needed
             gpu_devices = getattr(self, '_detected_gpu_devices', self.config.docker_config.gpu_devices or [])
             config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(gpu_devices)
@@ -236,7 +234,7 @@ class DockerOrchestrator:
                     }
                 }
             }
-        elif vllm_device_type == "rocm":
+        elif device_type == "rocm":
             # AMD ROCm GPU: set ROCR_VISIBLE_DEVICES, tensor parallel, and device access
             gpu_devices = getattr(self, '_detected_gpu_devices', self.config.docker_config.gpu_devices or [])
             config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
@@ -246,7 +244,7 @@ class DockerOrchestrator:
                 ])
             config["devices"] = ["/dev/kfd", "/dev/dri"]
             config["group_add"] = ["video", "render"]
-        elif vllm_device_type in ("cpu", "arm"):
+        elif device_type in ("cpu", "arm"):
             # CPU/ARM: set required vLLM CPU env vars (see vLLM docs)
             # These are required for vLLM to infer device type and run properly
             config["environment"]["VLLM_TARGET_DEVICE"] = "cpu"
@@ -261,9 +259,9 @@ class DockerOrchestrator:
             config["privileged"] = True
             config.setdefault("security_opt", []).append("seccomp:unconfined")
             config.setdefault("cap_add", []).append("SYS_NICE")
-        # Set VLLM_TARGET_DEVICE for all devices except nvidia (which infers from CUDA)
-        elif vllm_device_type not in ("cuda", "rocm", "cpu", "arm"):
-            config["environment"]["VLLM_TARGET_DEVICE"] = vllm_device_type
+        else:
+            # Set VLLM_TARGET_DEVICE for other device types
+            config["environment"]["VLLM_TARGET_DEVICE"] = device_type
 
         # Always set VLLM_LOGGING_LEVEL=DEBUG for easier debugging
         config["environment"]["VLLM_LOGGING_LEVEL"] = os.getenv("VLLM_LOGGING_LEVEL", "DEBUG")
@@ -375,10 +373,10 @@ class DockerOrchestrator:
     async def _pull_images(self):
         """Pull Docker images or build from source if needed."""
         if self.config.docker_config.needs_build_from_source:
-            # Build vLLM from source for non-NVIDIA devices
+            # Build vLLM from source for ARM devices
             await self._build_vllm_from_source()
         else:
-            # Pull published vLLM image for NVIDIA devices
+            # Pull published vLLM image for all other devices (CUDA, CPU, ROCm)
             vllm_image = self.config.docker_config.vllm_image
             log.info(f"Pulling Docker image: {vllm_image}")
             result = subprocess.run(
@@ -422,7 +420,7 @@ class DockerOrchestrator:
         log.info("FlexBench Docker image built successfully")
 
     async def _build_vllm_from_source(self):
-        """Build vLLM Docker image from source for non-NVIDIA devices."""
+        """Build vLLM Docker image from source for specific device architectures."""
         device_type = self.config.docker_config.device_type
         log.info(f"Building vLLM from source for {device_type} device...")
 
@@ -445,30 +443,25 @@ class DockerOrchestrator:
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clone vLLM repository: {result.stderr}")
 
-            # Build Docker image with appropriate Dockerfile (only for ARM)
+            # Build Docker image based on device type
             if device_type == "arm":
                 dockerfile = "Dockerfile.arm"
                 dockerfile_path = vllm_dir / "docker" / dockerfile
                 if not dockerfile_path.exists():
                     raise RuntimeError(f"Dockerfile {dockerfile} not found in vLLM repository")
-                platform_str = "linux/arm64"
+                    
                 build_command = [
                     "docker", "build",
-                    "--platform", platform_str,
+                    "--platform", "linux/arm64",
                     "-t", self.config.docker_config.custom_vllm_image_name,
                     "-f", str(dockerfile_path),
                     str(vllm_dir)
                 ]
             else:
-                raise RuntimeError("Building vLLM from source is only supported for ARM architecture. Other architectures should use pre-built images.")
+                # Future: Add other architectures here (e.g., custom CPU builds, etc.)
+                raise RuntimeError(f"Building vLLM from source is not yet supported for device type: {device_type}")
 
-            # Add device-specific build arguments
-            if device_type == "rocm":
-                build_command.extend(["--target", "final"])
-            elif device_type == "cpu":
-                build_command.extend(["--target", "vllm-openai"])
-
-            # Add all custom build arguments
+            # Add custom build arguments if provided
             if self.config.docker_config.vllm_build_args:
                 for key, value in self.config.docker_config.vllm_build_args.items():
                     build_command.extend(["--build-arg", f"{key}={value}"])
