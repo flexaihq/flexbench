@@ -1,10 +1,22 @@
-"""Typer CLI for FlexBench Docker orchestration."""
+"""Typer CLI for FlexBench Docker orchestration.
+**Examples:**
 
+    ```bash
+    # Basic benchmark with auto device detection (managed vLLM)
+    flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 1
+
+    # Use existing vLLM server instead of creating one
+    flexbench --api-server http://my-vllm-server:8000 --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
+
+    # Managed vLLM with tensor parallelism
+    flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10 --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2
+    ```
+"""
+from cli.utils import get_logger
 import typer
 import asyncio
 from enum import Enum
 from typing_extensions import Annotated
-from cli.utils import get_logger
 
 log = get_logger(__name__)
 
@@ -17,17 +29,16 @@ text generation benchmarks with automatic hardware detection and optimization.
 **Examples:**
 
 ```bash
-# Basic CPU benchmark
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
+# Basic benchmark with auto device detection
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 1
 
-# GPU benchmark with environment variables
-export FLEXBENCH_DEVICE_TYPE=cuda
-export FLEXBENCH_GPU_DEVICES="0,1"
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
+# Explicitly specify device type and tensor parallelism
+flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10 --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2
 ```
 """
 
 class DeviceType(str, Enum):
+    auto = "auto"
     cpu = "cpu"
     cuda = "cuda"
     rocm = "rocm"
@@ -79,24 +90,29 @@ def run(
     output_dir: str | None = typer.Option(None, help="Directory to store results"),
     
     # Docker-specific configuration
+    api_server: str | None = typer.Option(
+        None,
+        help="Existing vLLM API server URL (e.g., 'http://localhost:8000'). If specified, FlexBench will use this server instead of creating its own."
+    ),
     vllm_image: str = typer.Option(
         None,
         help="Full vLLM Docker image name (e.g. 'vllm/vllm-openai:latest', 'public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1', 'rocm/vllm:latest'). Overrides default for device type. Highly recommended for reproducibility."
     ),
     flexbench_image: str = typer.Option("flexbench:latest", help="FlexBench Docker image"),
-    device_type: DeviceType = typer.Option(DeviceType.cpu, help="Hardware device type"),
+    device_type: DeviceType = typer.Option(DeviceType.auto, help="Hardware device type (auto-detects: cuda -> rocm -> arm -> cpu)"),
     
     # GPU configuration
-    gpu_devices: str | None = typer.Option(None, help="Comma-separated GPU device IDs (e.g., '0,1,2')"),
-    gpu_count: int | None = typer.Option(None, help="Number of GPUs to use (first N GPUs)"),
+    gpu_devices: str | None = typer.Option(None, help="Comma-separated GPU device IDs (e.g., '0,1,2'). Auto-detects if not specified."),
+    tensor_parallel_size: int | None = typer.Option(None, help="Number of GPUs to use for tensor parallelism (e.g., 2, 4, 8)"),
     
     # vLLM configuration
     vllm_port: int = typer.Option(8000, help="Port for vLLM server"),
     vllm_max_model_len: int = typer.Option(2048, help="Maximum model length"),
-    model_cache_dir: Annotated[str | None, typer.Option(
-        help="Model cache directory",
+    vllm_disable_log_requests: bool = typer.Option(True, help="Disable vLLM request logging for better performance"),
+    model_cache_dir: Annotated[str, typer.Option(
+        help="Model cache directory (HuggingFace cache)",
         envvar="HF_HOME"
-    )] = None,
+    )] = "~/.cache/huggingface",
     vllm_memory_limit: str | None = typer.Option(None, help="vLLM memory limit (e.g., '8g')"),
     flexbench_memory_limit: str | None = typer.Option(None, help="FlexBench memory limit (e.g., '4g')"),
     
@@ -122,26 +138,18 @@ def run(
     **Examples:**
     
     ```bash
-    # Basic CPU benchmark
-    flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server
+    # Basic benchmark with auto device detection
+    flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 1
     
-    # GPU benchmark with environment variables
-    export FLEXBENCH_DEVICE_TYPE=cuda
-    export FLEXBENCH_GPU_DEVICES="0,1"
-    flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10
+    # Explicitly specify device type and tensor parallelism
+    flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10 --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2
     ```
     """
     
-    # Validate mutually exclusive GPU options
-    if gpu_devices and gpu_count:
-        typer.echo("❌ Error: Cannot specify both --gpu-devices and --gpu-count", err=True)
-        raise typer.Exit(1)
-    
-    # Parse GPU devices
+    # Parse GPU devices - gpu_count is auto-calculated from gpu_devices
     gpu_device_list = None
     if gpu_devices:
         gpu_device_list = [device.strip() for device in gpu_devices.split(",")]
-        gpu_count = len(gpu_device_list)
     
     # Import here to avoid circular imports
     from cli.config import (
@@ -179,15 +187,17 @@ def run(
         max_input_tokens=max_input_tokens,
         fixed_input_length=fixed_input_length,
         output_dir=output_dir,
+        api_server=api_server,
         flexbench_image=flexbench_image,
         device_type=device_type.value,
         gpu_devices=gpu_device_list,
-        gpu_count=gpu_count,
+        tensor_parallel_size=tensor_parallel_size,
         vllm_repo=vllm_repo,
         vllm_branch=vllm_branch,
         vllm_build_args=vllm_build_args,
         vllm_port=vllm_port,
         vllm_max_model_len=vllm_max_model_len,
+        vllm_disable_log_requests=vllm_disable_log_requests,
         model_cache_dir=model_cache_dir,
         vllm_memory_limit=vllm_memory_limit,
         flexbench_memory_limit=flexbench_memory_limit,
@@ -208,16 +218,18 @@ def run(
     
     # Create docker config
     docker_config = DockerConfig(
+        api_server=api_server,
         vllm_image=vllm_image,
         flexbench_image=flexbench_image,
         device_type=device_type.value,
         gpu_devices=gpu_device_list,
-        gpu_count=gpu_count,
+        tensor_parallel_size=tensor_parallel_size,
         vllm_repo=vllm_repo,
         vllm_branch=vllm_branch,
         vllm_build_args=vllm_build_args,
         vllm_port=vllm_port,
         vllm_max_model_len=vllm_max_model_len,
+        vllm_disable_log_requests=vllm_disable_log_requests,
         model_cache_dir=model_cache_dir,
         results_dir=output_dir,
         vllm_memory_limit=vllm_memory_limit,

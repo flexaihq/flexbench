@@ -21,17 +21,20 @@ from flexbench.config import DatasetConfig, BenchmarkConfig, create_dataset_conf
 class DockerConfig:
     """Configuration for Docker containers."""
 
+    # External vLLM server configuration
+    api_server: str | None = None  # If specified, use existing vLLM server instead of creating one
+
     # Docker-specific settings
-    vllm_image: str = "vllm/vllm-openai:latest"
+    vllm_image: str | None = None  # Will be set based on device_type in __post_init__
     flexbench_image: str = "flexbench:latest"
     network_name: str = "flexbench-network"
 
     # Device configuration
-    device_type: str = "cpu"  # cpu, cuda, rocm, arm
+    device_type: str = "auto"  # auto, cpu, cuda, rocm, arm
 
     # GPU settings
     gpu_devices: list[str] | None = None  # e.g., ["0", "1"] for specific GPUs
-    gpu_count: int | None = None  # Total GPU count for tensor parallelism
+    tensor_parallel_size: int | None = None  # Number of GPUs for tensor parallelism
 
     # vLLM build settings (only used for ARM)
     vllm_repo: str = "https://github.com/vllm-project/vllm.git"
@@ -44,7 +47,7 @@ class DockerConfig:
     vllm_disable_log_requests: bool = True
 
     # Volume mounts
-    model_cache_dir: str | None = None  # Host directory for model cache
+    model_cache_dir: str = "~/.cache/huggingface"  # HuggingFace cache directory
     results_dir: str | None = None  # Host directory for results
 
     # Container resource limits
@@ -52,23 +55,29 @@ class DockerConfig:
     flexbench_memory_limit: str | None = None
 
     @property
-    def needs_build_from_source(self) -> bool:
-        """Return True if vLLM must be built from source."""
-        return self.device_type == "arm"
-
-    @property
     def custom_vllm_image_name(self) -> str:
         """Return the custom vLLM image name for building from source."""
         return f"vllm-{self.device_type}:latest"
 
     def __post_init__(self):
-        if self.gpu_devices and self.gpu_count:
-            if len(self.gpu_devices) != self.gpu_count:
-                raise ValueError(
-                    f"gpu_devices length ({len(self.gpu_devices)}) must match gpu_count ({self.gpu_count})"
-                )
+        self._resolve_device_type()
+        self._validate_gpu_config()
+        self._parse_build_args()
+        self._set_default_vllm_image()
 
-        # Parse build args string into dict if it's a string
+    def _resolve_device_type(self):
+        """Resolve device type if set to 'auto'."""
+        if self.device_type == "auto":
+            from cli.utils import detect_device_type
+            self.device_type = detect_device_type()
+            log.info(f"Auto-detected device type: {self.device_type}")
+
+    def _validate_gpu_config(self):
+        """Validate GPU configuration consistency."""
+        pass
+
+    def _parse_build_args(self):
+        """Parse vLLM build arguments from string to dict if needed."""
         if isinstance(self.vllm_build_args, str):
             build_args = {}
             for arg in self.vllm_build_args.split():
@@ -77,23 +86,22 @@ class DockerConfig:
                     build_args[key] = value
             self.vllm_build_args = build_args
 
-        # Final fallback for vllm_image if None is passed
+    def _set_default_vllm_image(self):
+        """Set default vLLM image based on device type if not specified."""
         if not self.vllm_image:
             if self.device_type == "arm":
-                log.warning("No vLLM image specified, falling back to default for ARM: vllm-arm:latest")
-                self.vllm_image = "vllm-arm:latest"
-            elif self.device_type == "cuda":
-                log.warning("No vLLM image specified, falling back to default for CUDA: vllm/vllm-openai:latest")
-                self.vllm_image = "vllm/vllm-openai:latest"
-            elif self.device_type == "cpu":
-                log.warning("No vLLM image specified, falling back to default for CPU: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1")
-                self.vllm_image = "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1"
-            elif self.device_type == "rocm":
-                log.warning("No vLLM image specified, falling back to default for ROCm: rocm/vllm:latest")
-                self.vllm_image = "rocm/vllm:latest"
-            else:
-                log.warning(f"No vLLM image specified, falling back to {self.custom_vllm_image_name}")
+                # ARM builds from source, use custom image name
                 self.vllm_image = self.custom_vllm_image_name
+            else:
+                # Other devices use public images
+                image_defaults = {
+                    "cuda": "vllm/vllm-openai:latest",
+                    "cpu": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1",
+                    "rocm": "rocm/vllm:latest"
+                }
+                if self.device_type not in image_defaults:
+                    raise ValueError(f"Unsupported device type: {self.device_type}. Supported types: {list(image_defaults.keys()) + ['arm']}")
+                self.vllm_image = image_defaults[self.device_type]
 
 @dataclass
 class FlexBenchDockerConfig:

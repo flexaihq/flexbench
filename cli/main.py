@@ -6,8 +6,8 @@ import os
 import sys
 
 from cli.args import app
-from cli.docker import DockerOrchestrator, _check_docker_available
-from cli.utils import get_logger, setup_logging
+from cli.docker import DockerOrchestrator
+from cli.utils import get_logger, setup_logging, check_docker_available
 
 # Set up logging once at module level
 setup_logging()
@@ -29,7 +29,7 @@ async def run_benchmark_async(config, dry_run: bool = False) -> int:
             return 0
         
         # Check Docker availability
-        await _check_docker_available()
+        await check_docker_available()
         
         # Run benchmark with Docker orchestration
         orchestrator = DockerOrchestrator(config)

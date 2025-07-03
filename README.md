@@ -74,14 +74,13 @@ flexbench \
   --accuracy \
   --dataset-output-column response
 
-# GPU benchmarking with specific devices
+# GPU benchmarking with specific devices (auto-detects CUDA/ROCm)
 flexbench \
   --model-path meta-llama/Llama-2-7b-chat-hf \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
   --target-qps 10 \
-  --device-type nvidia \
   --gpu-devices "0,1"
 ```
 
@@ -133,23 +132,39 @@ For more details on the MLPerf Inference Benchmark and the design of modes and m
 
 ## Device Type Support
 
-FlexBench automatically selects the correct vLLM image for your hardware:
+FlexBench automatically detects your hardware and selects the optimal configuration. By default, `--device-type auto` is used, which detects devices in this priority order:
 
-| Device Type | Default vLLM Image |
-|-------------|--------------------|
-| cpu         | public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1 |
-| nvidia      | vllm/vllm-openai:latest |
-| rocm        | rocm/vllm:latest |
-| arm         | Built from source (Dockerfile.arm) |
+1. **CUDA** (NVIDIA GPUs) - if `nvidia-smi` is available
+2. **ROCm** (AMD GPUs) - if `rocm-smi` is available or AMD vendor detected
+3. **ARM** - if running on ARM architecture (arm64/aarch64)
+4. **CPU** - fallback for all other systems
+
+| Device Type | Default vLLM Image | Build Method |
+|-------------|-------------------|--------------|
+| auto        | *Auto-detected based on hardware* | *Varies by detected device* |
+| cuda        | vllm/vllm-openai:latest | Pull from registry |
+| cpu         | public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1 | Pull from registry |
+| rocm        | rocm/vllm:latest | Pull from registry |
+| arm         | vllm-arm:latest | Built from source |
 
 **Example usage:**
 ```bash
+# Auto-detect hardware (recommended)
 flexbench \
   --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
   --dataset-path ctuning/MLPerf-OpenOrca \
   --dataset-input-column question \
   --scenario Server \
-  --device-type cpu
+  --target-qps 1
+
+# Explicitly specify device type
+flexbench \
+  --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
+  --dataset-path ctuning/MLPerf-OpenOrca \
+  --dataset-input-column question \
+  --scenario Server \
+  --device-type cuda \
+  --target-qps 10
 ```
 
 To use a custom vLLM image (for any device except ARM):
