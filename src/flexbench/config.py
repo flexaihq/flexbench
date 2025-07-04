@@ -30,7 +30,7 @@ class BenchmarkConfig:
     scenario: tp.Literal["Offline", "Server", "SingleStream"]
     target_qps: float | None = None
 
-    sweep_mode: bool = False
+    sweep: bool = False
     num_sweep_points: int = 10
     tokenizer_path_override: str | None = None
     remote_model_path: str | None = None
@@ -49,23 +49,23 @@ class BenchmarkConfig:
 
     def __post_init__(self):
         if self.scenario in ("Offline", "Server"):
-            if not self.sweep_mode and self.target_qps is None:
+            if not self.sweep and self.target_qps is None:
                 raise ValueError(
-                    "Either sweep_mode must be True or target_qps must be specified for Offline/Server scenarios"
+                    "Either sweep must be True or target_qps must be specified for Offline/Server scenarios"
                 )
-            if self.sweep_mode and self.target_qps is not None:
+            if self.sweep and self.target_qps is not None:
                 raise ValueError(
-                    f"Cannot specify both sweep_mode={self.sweep_mode} and target_qps={self.target_qps} for Offline/Server scenarios"
+                    f"Cannot specify both sweep={self.sweep} and target_qps={self.target_qps} for Offline/Server scenarios"
                 )
             if self.scenario == "Server" and self.batch_size is not None:
                 raise ValueError("Batch size is not applicable for Server scenario")
         elif self.scenario == "SingleStream":
-            if self.sweep_mode or self.target_qps is not None:
+            if self.sweep or self.target_qps is not None:
                 pass  # Just ignore these for SingleStream
             if self.accuracy:
                 raise ValueError("Accuracy mode is not supported for SingleStream scenario.")
 
-        if self.sweep_mode and self.accuracy:
+        if self.sweep and self.accuracy:
             raise ValueError(
                 "Sweep mode is not compatible with accuracy testing. Use --target-qps for accuracy mode."
             )
@@ -100,8 +100,8 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         dataset_config=dataset_config,
         scenario=args.scenario,
         target_qps=getattr(args, "target_qps", None),
-        sweep_mode=getattr(args, "sweep", False),
-        num_sweep_points=getattr(args, "num_points", 10),
+        sweep=getattr(args, "sweep", False),
+        num_sweep_points=getattr(args, "num_sweep_points", 10),
         batch_size=getattr(args, "batch_size", None),
         max_generated_tokens=getattr(args, "max_generated_tokens", None),
         max_input_tokens=getattr(args, "max_input_tokens", None),

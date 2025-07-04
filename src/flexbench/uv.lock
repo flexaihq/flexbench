@@ -618,6 +618,11 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+full = [
     { name = "anyio" },
     { name = "cmind" },
     { name = "datasets" },
@@ -626,14 +631,11 @@ dependencies = [
     { name = "nltk" },
     { name = "pandas" },
     { name = "pillow" },
-    { name = "pyyaml" },
     { name = "rouge-score" },
     { name = "sentencepiece" },
     { name = "tqdm" },
     { name = "transformers" },
 ]
-
-[package.optional-dependencies]
 local = [
     { name = "flashinfer-python" },
     { name = "vllm" },
@@ -648,23 +650,23 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10.0" },
-    { name = "anyio", specifier = ">=4.9.0" },
-    { name = "cmind", specifier = ">=4.2.0" },
-    { name = "datasets", specifier = ">=3.5.0" },
-    { name = "evaluate", specifier = ">=0.4.3" },
+    { name = "anyio", marker = "extra == 'full'", specifier = ">=4.9.0" },
+    { name = "cmind", marker = "extra == 'full'", specifier = ">=4.2.0" },
+    { name = "datasets", marker = "extra == 'full'", specifier = ">=3.5.0" },
+    { name = "evaluate", marker = "extra == 'full'", specifier = ">=0.4.3" },
     { name = "flashinfer-python", marker = "extra == 'local'", specifier = ">=0.2.2,<0.2.3" },
-    { name = "mlcommons-loadgen", specifier = ">=5.0.15" },
-    { name = "nltk", specifier = ">=3.9.1" },
-    { name = "pandas", specifier = ">=2.2.3" },
-    { name = "pillow", specifier = ">=11.1.0" },
+    { name = "mlcommons-loadgen", marker = "extra == 'full'", specifier = ">=5.0.15" },
+    { name = "nltk", marker = "extra == 'full'", specifier = ">=3.9.1" },
+    { name = "pandas", marker = "extra == 'full'", specifier = ">=2.2.3" },
+    { name = "pillow", marker = "extra == 'full'", specifier = ">=11.1.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
-    { name = "rouge-score", specifier = ">=0.1.2" },
-    { name = "sentencepiece", specifier = ">=0.2.0" },
-    { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "transformers", specifier = ">=4.50.3" },
+    { name = "rouge-score", marker = "extra == 'full'", specifier = ">=0.1.2" },
+    { name = "sentencepiece", marker = "extra == 'full'", specifier = ">=0.2.0" },
+    { name = "tqdm", marker = "extra == 'full'", specifier = ">=4.67.1" },
+    { name = "transformers", marker = "extra == 'full'", specifier = ">=4.50.3" },
     { name = "vllm", marker = "extra == 'local'", specifier = ">=0.8.5" },
 ]
-provides-extras = ["local"]
+provides-extras = ["full", "local"]
 
 [package.metadata.requires-dev]
 dev = [

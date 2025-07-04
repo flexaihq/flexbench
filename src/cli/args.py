@@ -73,7 +73,7 @@ def run(
     sweep: bool = typer.Option(
         False, help="Run sweep mode: find max QPS then sweep different values"
     ),
-    num_points: int = typer.Option(10, help="Number of QPS points to test in sweep mode"),
+    num_sweep_points: int = typer.Option(10, help="Number of QPS points to test in sweep mode"),
     backend: str = typer.Option("loadgen", help="Benchmark backend: loadgen or vllm"),
     # Dataset options (text-only)
     dataset_output_column: str | None = typer.Option(
@@ -168,8 +168,8 @@ def run(
         DockerConfig,
         FlexBenchDockerConfig,
     )
-    from flexbench.config import create_benchmark_config
     from cli.main import run_benchmark_async
+    from flexbench.config import create_benchmark_config
 
     # Create fake args object to use config builders
     class Args:
@@ -186,7 +186,7 @@ def run(
         remote_model_path=remote_model_path,
         target_qps=target_qps,
         sweep=sweep,
-        num_points=num_points,
+        num_sweep_points=num_sweep_points,
         backend=backend,
         dataset_output_column=dataset_output_column,
         accuracy=accuracy,

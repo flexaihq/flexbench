@@ -1,8 +1,6 @@
 """Docker configuration for FlexBench CLI (text-only)."""
 
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 from cli.utils import get_logger
 from flexbench.config import BenchmarkConfig

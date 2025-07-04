@@ -280,7 +280,7 @@ class DockerOrchestrator:
         if config.target_qps is not None:
             args.extend(["--target-qps", str(config.target_qps)])
 
-        if config.sweep_mode:
+        if config.sweep:
             args.append("--sweep")
             args.extend(["--num-points", str(config.num_sweep_points)])
 
@@ -640,118 +640,80 @@ class DockerOrchestrator:
 
     async def _run_flexbench_with_external_vllm(self) -> dict[str, Any]:
         """Run FlexBench directly against external vLLM server."""
-        # For external vLLM, we run FlexBench directly without Docker orchestration
         log.info("Running FlexBench against external vLLM server...")
-
-        # Import and run FlexBench directly
-
-        # Create a minimal config for direct execution
-        from cli.config import FlexBenchDockerConfig
-
-        # Update the config to not use Docker for vLLM
-        direct_config = FlexBenchDockerConfig(
-            benchmark_config=self.config.benchmark_config,
-            docker_config=self.config.docker_config,
-            cleanup=False,  # No containers to clean up
-            pull_images=False,  # No images to pull
-            build_flexbench=False,  # No FlexBench container needed
-            wait_timeout=self.config.wait_timeout,
-        )
-
-        # Run benchmark directly
-        import sys
-
-        # Capture the result
-        result = {}
-
-        # Build args for direct FlexBench execution
-        benchmark_args = self._get_direct_benchmark_args()
-
-        # Save original argv and replace
-        original_argv = sys.argv
-        try:
-            sys.argv = ["flexbench"] + benchmark_args
-
-            # TODO: This needs to be implemented to run FlexBench directly
-            # For now, return a placeholder
-            log.warning("Direct FlexBench execution not yet implemented")
-            result = {
-                "status": "external_server_mode",
-                "api_server": self.config.docker_config.api_server,
-            }
-
-        finally:
-            sys.argv = original_argv
-
-        return result
-
-    def _get_direct_benchmark_args(self) -> list[str]:
-        """Get command arguments for direct FlexBench execution."""
+        
+        # Import the flexbench functions
+        from flexbench.main import async_main, create_args_from_dict
+        
         config = self.config.benchmark_config
-
-        args = [
-            "--model-path",
-            config.model_path,
-            "--api-server",
-            self.config.docker_config.api_server,
-            "--scenario",
-            config.scenario,
-            "--dataset-path",
-            config.dataset_config.path,
-            "--dataset-input-column",
-            config.dataset_config.input_column,
-            "--backend",
-            "loadgen",
-        ]
-
-        # Add optional arguments
+        
+        # Create arguments dictionary for the benchmark
+        api_params = {
+            "model_path": config.model_path,
+            "dataset_path": config.dataset_config.path,
+            "dataset_input_column": config.dataset_config.input_column,
+            "scenario": config.scenario,
+            "api_server": self.config.docker_config.api_server,
+            "backend": "loadgen",
+        }
+        
+        # Add optional parameters
         if config.remote_model_path and config.remote_model_path != config.model_path:
-            args.extend(["--remote-model-path", config.remote_model_path])
-
+            api_params["remote_model_path"] = config.remote_model_path
+            
         if config.dataset_config.output_column:
-            args.extend(["--dataset-output-column", config.dataset_config.output_column])
-
+            api_params["dataset_output_column"] = config.dataset_config.output_column
+            
         if config.dataset_config.system_prompt_column:
-            args.extend(
-                ["--dataset-system-prompt-column", config.dataset_config.system_prompt_column]
-            )
-
+            api_params["dataset_system_prompt_column"] = config.dataset_config.system_prompt_column
+            
         if config.dataset_config.split != "train":
-            args.extend(["--dataset-split", config.dataset_config.split])
-
+            api_params["dataset_split"] = config.dataset_config.split
+            
         if config.tokenizer_path_override:
-            args.extend(["--tokenizer-path-override", config.tokenizer_path_override])
-
+            api_params["tokenizer_path_override"] = config.tokenizer_path_override
+            
         if config.api_token:
-            args.extend(["--api-token", config.api_token])
-
+            api_params["api_token"] = config.api_token
+            
         if config.target_qps is not None:
-            args.extend(["--target-qps", str(config.target_qps)])
-
-        if config.sweep_mode:
-            args.append("--sweep")
-            args.extend(["--num-points", str(config.num_sweep_points)])
-
+            api_params["target_qps"] = config.target_qps
+            
+        if config.sweep:
+            api_params["sweep"] = True
+            api_params["num_sweep_points"] = config.num_sweep_points
+            
         if config.batch_size is not None:
-            args.extend(["--batch-size", str(config.batch_size)])
-
+            api_params["batch_size"] = config.batch_size
+            
         if config.max_generated_tokens is not None:
-            args.extend(["--max-generated-tokens", str(config.max_generated_tokens)])
-
+            api_params["max_generated_tokens"] = config.max_generated_tokens
+            
         if config.max_input_tokens is not None:
-            args.extend(["--max-input-tokens", str(config.max_input_tokens)])
-
+            api_params["max_input_tokens"] = config.max_input_tokens
+            
         if config.fixed_input_length:
-            args.append("--fixed-input-length")
-
+            api_params["fixed_input_length"] = True
+            
         if config.accuracy:
-            args.append("--accuracy")
+            api_params["accuracy"] = True
 
         if config.total_sample_count is not None:
-            args.extend(["--total-sample-count", str(config.total_sample_count)])
+            api_params["total_sample_count"] = config.total_sample_count
 
         # Set output directory
-        results_dir = self.config.docker_config.results_dir or "results"
-        args.extend(["--output-dir", results_dir])
-
-        return args
+        if self.config.docker_config.results_dir:
+            api_params["output_dir"] = self.config.docker_config.results_dir
+        
+        log.info(f"Running FlexBench with parameters: {api_params}")
+        
+        try:
+            # Create args object and run FlexBench
+            args = create_args_from_dict(**api_params)
+            result = await async_main(args)
+            log.info("FlexBench execution completed successfully")
+            return result
+            
+        except Exception as e:
+            log.error(f"FlexBench execution failed: {e}")
+            raise

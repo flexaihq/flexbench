@@ -18,17 +18,24 @@ dependencies = [
     "aiohttp>=3.12.13",
     "pyyaml>=6.0.2",
     "typer>=0.16.0",
+    "flexbench",
 ]
 
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 
 classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
+[tool.uv.workspace]
+members = ["src/flexbench"]
+
+[tool.uv.sources]
+flexbench = { workspace = true }
+
+
 [project.scripts]
 flexbench = "cli.main:main"
-flexbench-core = "flexbench.cli:main"
 
 [project.optional-dependencies]
 

@@ -10,9 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-from flexbench.args import create_module_parser, validate_args
-from flexbench.config import create_benchmark_config
-from flexbench.runners.factory import create_benchmark_runner
+# Import lightweight modules only
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
@@ -20,14 +18,22 @@ log = get_logger(__name__)
 
 def get_args():
     """Parse command line arguments for module usage."""
+    from flexbench.args import create_module_parser, validate_args
     parser = create_module_parser()
     args = parser.parse_args()
     return validate_args(args)
 
 
-async def async_main() -> dict:
-    args = get_args()
-    log.info(f"Parsed arguments: {args}")
+async def async_main(args=None) -> dict:
+    """Main async function that can accept args directly or parse from command line."""
+    # Lazy imports
+    from flexbench.config import create_benchmark_config
+    from flexbench.runners.factory import create_benchmark_runner
+    
+    if args is None:
+        args = get_args()
+        
+    log.info(f"Running FlexBench with arguments: {args}")
 
     # Create configurations using shared builders
     benchmark_config = create_benchmark_config(args)
@@ -55,6 +61,20 @@ async def async_main() -> dict:
         result["results_path"] = str(results_path.absolute())
 
     return result
+
+
+def create_args_from_dict(**kwargs):
+    """Create an args object from keyword arguments for programmatic use."""
+    from flexbench.args import validate_args
+    
+    # Create a mock args object with the provided parameters
+    class MockArgs:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    args = MockArgs(**kwargs)
+    return validate_args(args)
 
 
 def main():

@@ -174,7 +174,7 @@ class LoadGenRunner(BaseRunner):
     async def run(self) -> dict:
         """Run benchmark and return results."""
         try:
-            if self.config.sweep_mode:
+            if self.config.sweep:
                 result = await self._run_sweep_benchmark()
                 return result
             else:
@@ -191,7 +191,7 @@ class LoadGenRunner(BaseRunner):
             self.backend.stop()
 
     async def _run_sweep_benchmark(
-        self, initial_qps: float = 1000.0, budget: float = 1.2, num_points: int = None
+        self, initial_qps: float = 1000.0, budget: float = 1.2, num_sweep_points: int = None
     ) -> dict:
         """Run sweep benchmark with multiple QPS values using separate processes."""
         log.info("Starting sweep benchmark mode")
@@ -213,10 +213,10 @@ class LoadGenRunner(BaseRunner):
         # Create a range of QPS values to sweep through
         qps_values = []
         max_target_qps = max_throughput * budget
-        log.info(f"Running sweep with {num_points} data points")
-        num_points = num_points or self.config.num_sweep_points
-        for i in range(1, num_points + 1):
-            qps = (i * max_target_qps) / num_points
+        log.info(f"Running sweep with {num_sweep_points} data points")
+        num_sweep_points = num_sweep_points or self.config.num_sweep_points
+        for i in range(1, num_sweep_points + 1):
+            qps = (i * max_target_qps) / num_sweep_points
             qps_values.append(round(qps, 2))
 
         log.info(f"Sweeping through QPS values: {[f'{qps:.2f}' for qps in qps_values]}")
