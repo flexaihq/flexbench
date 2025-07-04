@@ -11,7 +11,20 @@ authors = [
 
 dependencies = [
     "aiohttp>=3.10.0",
+    "anyio>=4.9.0",
+    "cmind>=4.2.0",
+    "datasets>=3.5.0",
+    "evaluate>=0.4.3",
+    "mlcommons-loadgen>=5.0.15",
+    "nltk>=3.9.1",
+    "pandas>=2.2.3",
+    "pillow>=11.1.0",
     "pyyaml>=6.0.0",
+    "requests>=2.32.4",
+    "rouge-score>=0.1.2",
+    "sentencepiece>=0.2.0",
+    "tqdm>=4.67.1",
+    "transformers>=4.50.3",
 ]
 
 license = "Apache-2.0"
@@ -21,20 +34,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-full = [
-    "anyio>=4.9.0",
-    "cmind>=4.2.0",
-    "datasets>=3.5.0",
-    "evaluate>=0.4.3",
-    "mlcommons-loadgen>=5.0.15",
-    "nltk>=3.9.1",
-    "pandas>=2.2.3",
-    "pillow>=11.1.0",
-    "rouge-score>=0.1.2",
-    "sentencepiece>=0.2.0",
-    "tqdm>=4.67.1",
-    "transformers>=4.50.3",
-]
 local = [
     "flashinfer-python>=0.2.2,<0.2.3",
     "vllm>=0.8.5",

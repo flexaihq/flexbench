@@ -167,9 +167,9 @@ def run(
     from cli.config import (
         DockerConfig,
         FlexBenchDockerConfig,
+        create_benchmark_config,
     )
     from cli.main import run_benchmark_async
-    from flexbench.config import create_benchmark_config
 
     # Create fake args object to use config builders
     class Args:

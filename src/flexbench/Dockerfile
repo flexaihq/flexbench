@@ -23,7 +23,7 @@ COPY . .
 # Create virtual environment and install the flexbench module with full dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv && \
-    uv sync --extra full
+    uv sync --no-dev
 
 # Add venv to PATH
 ENV PATH="/app/.venv/bin:$PATH"
