@@ -63,18 +63,7 @@ async def async_main(args=None) -> dict:
     return result
 
 
-def create_args_from_dict(**kwargs):
-    """Create an args object from keyword arguments for programmatic use."""
-    from flexbench.args import validate_args
-    
-    # Create a mock args object with the provided parameters
-    class MockArgs:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
 
-    args = MockArgs(**kwargs)
-    return validate_args(args)
 
 
 def main():
