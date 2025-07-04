@@ -19,6 +19,7 @@ log = get_logger(__name__)
 def get_args():
     """Parse command line arguments for module usage."""
     from flexbench.args import create_module_parser, validate_args
+
     parser = create_module_parser()
     args = parser.parse_args()
     return validate_args(args)
@@ -29,10 +30,10 @@ async def async_main(args=None) -> dict:
     # Lazy imports
     from flexbench.config import create_benchmark_config
     from flexbench.runners.factory import create_benchmark_runner
-    
+
     if args is None:
         args = get_args()
-        
+
     log.info(f"Running FlexBench with arguments: {args}")
 
     # Create configurations using shared builders
@@ -61,9 +62,6 @@ async def async_main(args=None) -> dict:
         result["results_path"] = str(results_path.absolute())
 
     return result
-
-
-
 
 
 def main():

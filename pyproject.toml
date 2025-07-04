@@ -26,14 +26,17 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
-
 [project.scripts]
 flexbench = "cli.main:main"
 
 [project.optional-dependencies]
 
 [dependency-groups]
-dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]
+dev = [
+    "ipykernel>=6.29.5",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.5",
+]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]

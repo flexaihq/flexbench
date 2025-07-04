@@ -41,7 +41,7 @@ class DockerOrchestrator:
                 await self._build_flexbench_image()
 
             await self._start_containers()
-            
+
             if not self.config.docker_config.api_server:
                 await self._wait_for_vllm_ready()
 
@@ -52,6 +52,7 @@ class DockerOrchestrator:
                 await self._cleanup_containers()
             if self.temp_dir and self.temp_dir.exists():
                 import shutil
+
                 shutil.rmtree(self.temp_dir)
                 log.info("Temporary files cleaned up")
 
@@ -146,7 +147,7 @@ class DockerOrchestrator:
 
         return config
 
-    def _apply_device_config(self, config: dict[str, Any], device_type: str) -> None:
+    def _apply_device_config(self, config: dict[str, Any], device_type: str) -> dict[str, Any]:
         """Apply device-specific configuration to vLLM service."""
         gpu_devices = self.config.docker_config.gpu_devices or ["0"]
 
@@ -458,6 +459,7 @@ class DockerOrchestrator:
         log.info("Waiting for vLLM server to be ready...")
 
         import asyncio
+
         import aiohttp
 
         async with aiohttp.ClientSession() as session:
@@ -609,4 +611,3 @@ class DockerOrchestrator:
                         raise RuntimeError(f"External vLLM server returned status {resp.status}")
         except Exception as e:
             raise RuntimeError(f"Failed to connect to external vLLM server {api_server}: {e}")
-

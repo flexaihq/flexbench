@@ -138,7 +138,7 @@ class DockerConfig:
     # vLLM build settings (only used for ARM)
     vllm_repo: str = "https://github.com/vllm-project/vllm.git"
     vllm_branch: str = "main"
-    vllm_build_args: dict[str, str] | None = None  # Additional build arguments
+    vllm_build_args: str | dict[str, str] | None = None  # Additional build arguments
 
     # vLLM container settings
     vllm_port: int = 8000
