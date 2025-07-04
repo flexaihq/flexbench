@@ -383,7 +383,7 @@ class DockerOrchestrator:
             log.info(
                 f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}"
             )
-            log.info("This may take 10-30 minutes...")
+            log.info("This may take a few minutes...")
 
             env = {"DOCKER_BUILDKIT": "1"}
             result = subprocess.run(
