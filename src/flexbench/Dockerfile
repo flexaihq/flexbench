@@ -18,12 +18,12 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Copy the flexbench module for installation
-COPY src/flexbench/ ./src/flexbench/
+COPY . .
 
 # Create virtual environment and install the flexbench module
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv && \
-    uv pip install -e ./src/flexbench/
+    uv pip install -e .
 
 # Add venv to PATH
 ENV PATH="/app/.venv/bin:$PATH"

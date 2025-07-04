@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass
 class DatasetConfig:
     """Configuration for dataset loading and column mapping (text-only)."""
+
     path: str
     input_column: str
     output_column: str | None = None
@@ -62,9 +63,7 @@ class BenchmarkConfig:
             if self.sweep_mode or self.target_qps is not None:
                 pass  # Just ignore these for SingleStream
             if self.accuracy:
-                raise ValueError(
-                    "Accuracy mode is not supported for SingleStream scenario."
-                )
+                raise ValueError("Accuracy mode is not supported for SingleStream scenario.")
 
         if self.sweep_mode and self.accuracy:
             raise ValueError(
@@ -79,35 +78,35 @@ def create_dataset_config(args) -> DatasetConfig:
     return DatasetConfig(
         path=args.dataset_path,
         input_column=args.dataset_input_column,
-        output_column=getattr(args, 'dataset_output_column', None),
-        system_prompt_column=getattr(args, 'dataset_system_prompt_column', None),
-        split=getattr(args, 'dataset_split', 'train'),
-        accuracy_mode=getattr(args, 'accuracy', False),
+        output_column=getattr(args, "dataset_output_column", None),
+        system_prompt_column=getattr(args, "dataset_system_prompt_column", None),
+        split=getattr(args, "dataset_split", "train"),
+        accuracy_mode=getattr(args, "accuracy", False),
     )
 
 
 def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -> BenchmarkConfig:
     """Create BenchmarkConfig from parsed arguments (text-only)."""
-    
+
     if dataset_config is None:
         dataset_config = create_dataset_config(args)
-    
+
     return BenchmarkConfig(
         model_path=args.model_path,
-        remote_model_path=getattr(args, 'remote_model_path', args.model_path),
-        tokenizer_path_override=getattr(args, 'tokenizer_path_override', None),
-        api_server=getattr(args, 'api_server', 'http://localhost:8000'),
-        api_token=getattr(args, 'api_token', None),
+        remote_model_path=getattr(args, "remote_model_path", args.model_path),
+        tokenizer_path_override=getattr(args, "tokenizer_path_override", None),
+        api_server=getattr(args, "api_server", "http://localhost:8000"),
+        api_token=getattr(args, "api_token", None),
         dataset_config=dataset_config,
         scenario=args.scenario,
-        target_qps=getattr(args, 'target_qps', None),
-        sweep_mode=getattr(args, 'sweep', False),
-        num_sweep_points=getattr(args, 'num_points', 10),
-        batch_size=getattr(args, 'batch_size', None),
-        max_generated_tokens=getattr(args, 'max_generated_tokens', None),
-        max_input_tokens=getattr(args, 'max_input_tokens', None),
-        fixed_input_length=getattr(args, 'fixed_input_length', False),
-        accuracy=getattr(args, 'accuracy', False),
-        total_sample_count=getattr(args, 'total_sample_count', None),
-        output_dir=getattr(args, 'output_dir', None),
+        target_qps=getattr(args, "target_qps", None),
+        sweep_mode=getattr(args, "sweep", False),
+        num_sweep_points=getattr(args, "num_points", 10),
+        batch_size=getattr(args, "batch_size", None),
+        max_generated_tokens=getattr(args, "max_generated_tokens", None),
+        max_input_tokens=getattr(args, "max_input_tokens", None),
+        fixed_input_length=getattr(args, "fixed_input_length", False),
+        accuracy=getattr(args, "accuracy", False),
+        total_sample_count=getattr(args, "total_sample_count", None),
+        output_dir=getattr(args, "output_dir", None),
     )

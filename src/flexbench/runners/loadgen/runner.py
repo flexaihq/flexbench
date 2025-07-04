@@ -10,8 +10,8 @@ from pathlib import Path
 
 import mlperf_loadgen as lg
 
-from flexbench.config import BenchmarkConfig
 from flexbench.accuracy_check import run_accuracy_check
+from flexbench.config import BenchmarkConfig
 from flexbench.runners.base import BaseRunner
 from flexbench.runners.loadgen.backend import LoadGenBackend
 from flexbench.utils import get_logger
@@ -151,9 +151,7 @@ class LoadgenResult:
 
         metrics = {k: extract_float(v) for k, v in patterns.items()}
         valid = "Result is : VALID" in content
-        completed = (
-            config.total_sample_count if "Early stopping satisfied" in content else 0
-        )
+        completed = config.total_sample_count if "Early stopping satisfied" in content else 0
 
         return cls(
             scenario=config.scenario,
@@ -207,9 +205,7 @@ class LoadGenRunner(BaseRunner):
         # Extract the max effective QPS achieved from the result
         max_throughput = max_throughput_result.get("samples_per_second", 0)
         if max_throughput <= 0:
-            log.warning(
-                "Failed to determine maximum throughput, defaulting to initial value"
-            )
+            log.warning("Failed to determine maximum throughput, defaulting to initial value")
             max_throughput = initial_qps / 2
 
         log.info(f"Maximum throughput detected: {max_throughput:.2f} QPS")
@@ -282,34 +278,26 @@ class LoadGenRunner(BaseRunner):
                 cmd.extend(["--dataset-split", self.config.dataset_config.split])
 
             if self.config.tokenizer_path_override:
-                cmd.extend(
-                    ["--tokenizer-path-override", self.config.tokenizer_path_override]
-                )
+                cmd.extend(["--tokenizer-path-override", self.config.tokenizer_path_override])
 
             if self.config.api_token:
                 cmd.extend(["--api-token", self.config.api_token])
 
             if self.config.total_sample_count:
-                cmd.extend(
-                    ["--total-sample-count", str(self.config.total_sample_count)]
-                )
+                cmd.extend(["--total-sample-count", str(self.config.total_sample_count)])
 
             if self.config.batch_size:
                 cmd.extend(["--batch-size", str(self.config.batch_size)])
 
             if self.config.max_generated_tokens:
-                cmd.extend(
-                    ["--max-generated-tokens", str(self.config.max_generated_tokens)]
-                )
+                cmd.extend(["--max-generated-tokens", str(self.config.max_generated_tokens)])
 
             # Always use DEBUG log level for child processes during sweep mode
             env = os.environ.copy()
             env["LOG_LEVEL"] = "DEBUG"
 
             # Print a separator to visually distinguish different runs
-            separator = (
-                f"\n{'-'*80}\n{' '*30}BENCHMARK RUN: QPS={target_qps}\n{'-'*80}\n"
-            )
+            separator = f"\n{'-' * 80}\n{' ' * 30}BENCHMARK RUN: QPS={target_qps}\n{'-' * 80}\n"
             print(separator)
 
             # Run process without capturing output so it appears in real-time
@@ -407,8 +395,7 @@ class LoadGenRunner(BaseRunner):
         elif config.scenario == "SingleStream":
             if config.target_qps is not None:
                 log.warning(
-                    "SingleStream scenario does not support target_qps. "
-                    "Using default settings."
+                    "SingleStream scenario does not support target_qps. Using default settings."
                 )
 
         return test_settings

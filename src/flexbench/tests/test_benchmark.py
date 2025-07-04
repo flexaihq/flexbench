@@ -11,9 +11,9 @@ with HuggingFaceTB/SmolLM2-135M-Instruct model loaded.
 import json
 import subprocess
 import sys
-import requests
 
 import pytest
+import requests
 
 from flexbench.tests.configs import BASE_CONFIG, TEST_CASES
 

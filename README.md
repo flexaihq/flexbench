@@ -112,8 +112,9 @@ flowchart LR
 ```
 
 **Benefits:**
+
 - **Zero setup** - Automatic container management
-- **Isolated environments** - Reproducible benchmarks  
+- **Isolated environments** - Reproducible benchmarks
 - **GPU resource management** - Automatic device allocation
 - **Dependency isolation** - No conflicts with host environment
 - **Production ready** - Easy deployment and scaling
@@ -124,9 +125,9 @@ FlexBench supports multiple inference scenarios based on MLPerf standards:
 
 | Scenario       | Description                                                                 | Load Generation                                                                       | Use Case                        |
 |----------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------|
-| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img src="./assets/server.png" width="200"/>             | Online serving, latency testing  |
-| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img src="./assets/offline.png" width="200"/>           | Throughput benchmarking          |
-| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
+| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img alt="Server load generation" src="./assets/server.png" width="200"/>             | Online serving, latency testing  |
+| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img alt="Offline load generation" src="./assets/offline.png" width="200"/>           | Throughput benchmarking          |
+| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img alt="Single stream load generation" src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
 
 For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
 
@@ -148,6 +149,7 @@ FlexBench automatically detects your hardware and selects the optimal configurat
 | arm         | vllm-arm:latest | Built from source |
 
 **Example usage:**
+
 ```bash
 # Auto-detect hardware (recommended)
 flexbench \
@@ -168,6 +170,7 @@ flexbench \
 ```
 
 To use a custom vLLM image (for any device except ARM):
+
 ```bash
 flexbench ... --vllm-image myregistry.example.com/mycustom/vllm:mytag
 ```
@@ -286,12 +289,13 @@ FlexBench works with any HuggingFace text model, with specialized chat templates
 ### Dataset Support
 
 #### Text Tasks
+
 - Configurable column mapping for input text, output text, and system prompts
 - Examples: `ctuning/MLPerf-OpenOrca`, `Open-Orca/OpenOrca`
 
 ## Using MLCommons CMX automation language
 
-We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/run-mlperf-inference-benchmark) 
+We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/run-mlperf-inference-benchmark)
 to help users prepare, validate, and submit official MLPerf inference results using FlexBench.
 These automations are based on our [MLPerf inference v5.0 submission](https://github.com/mlcommons/inference_results_v5.0/tree/main/open/FlexAI/measurements/cmx-flexbench-cuda-1xH100-vllm-0.7.3-pytorch-2.5.1-huggingface-16d94432c8704c14/DeepSeek-R1-Distill-Llama-8B/Server),
 featuring DeepSeek-R1-Distill-Llama-8B and vLLM.
@@ -316,6 +320,7 @@ flexbench config --template  # Generate .env template
 ```
 
 For troubleshooting:
+
 1. **System requirements**: Use `flexbench config validate` to check Docker and GPU drivers
 2. **Environment variables**: Use `flexbench config show` to verify configuration
 3. **Container debugging**: Use `--no-cleanup` flag to inspect container logs
@@ -323,20 +328,19 @@ For troubleshooting:
 
 For general issues, see the [Module Documentation](src/flexbench/README.md) or [open an issue](https://github.com/flexaihq/flexbench/issues).
 
-
 ## License and Copyright
 
 This project is licensed under the [Apache License 2.0](LICENSE.md).
 
 © 2025 FlexAI
 
-Portions of the code were adapted from the following MLCommons repositories, 
+Portions of the code were adapted from the following MLCommons repositories,
 which are also licensed under the Apache 2.0 license:
 
-* [mlcommons@inference](https://github.com/mlcommons/inference)
-* [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
-* [mlcommons@ck](https://github.com/mlcommons/ck)
-* [mlcommons@vllm-project](https://github.com/vllm-project/vllm)
+- [mlcommons@inference](https://github.com/mlcommons/inference)
+- [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
+- [mlcommons@ck](https://github.com/mlcommons/ck)
+- [mlcommons@vllm-project](https://github.com/vllm-project/vllm)
 
 ## Authors and maintaners
 

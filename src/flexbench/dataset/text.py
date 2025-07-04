@@ -1,6 +1,4 @@
-import sys
 import textwrap
-from pathlib import Path
 
 from tqdm import tqdm
 
@@ -82,9 +80,7 @@ class TextDataset(MLPerfDataset):
             from transformers import AutoTokenizer
 
             self.tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
-            log.info(
-                f"Created tokenizer for input processing (max {max_input_tokens} tokens)"
-            )
+            log.info(f"Created tokenizer for input processing (max {max_input_tokens} tokens)")
             if fixed_input_length:
                 log.info(f"Using fixed input length of {max_input_tokens} tokens")
 
@@ -96,9 +92,7 @@ class TextDataset(MLPerfDataset):
 
         for model_type, config in MODEL_CONFIGS.items():
             if config["pattern"] in model_path:
-                log.info(
-                    f"Detected {model_type=} with chat template: {repr(config['template'])}"
-                )
+                log.info(f"Detected {model_type=} with chat template: {repr(config['template'])}")
                 return model_type
 
         log.warning(
@@ -130,8 +124,7 @@ class TextDataset(MLPerfDataset):
             return []
 
         formatted_prompts = [
-            self._apply_template(sample)
-            for sample in tqdm(samples, desc="Applying templates")
+            self._apply_template(sample) for sample in tqdm(samples, desc="Applying templates")
         ]
 
         if not self.tokenizer or self.max_input_tokens is None:
@@ -141,9 +134,7 @@ class TextDataset(MLPerfDataset):
         batch_size = 64
         processed_prompts = []
 
-        for i in tqdm(
-            range(0, len(formatted_prompts), batch_size), desc="Processing batches"
-        ):
+        for i in tqdm(range(0, len(formatted_prompts), batch_size), desc="Processing batches"):
             batch = formatted_prompts[i : i + batch_size]
 
             if self.fixed_input_length:

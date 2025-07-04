@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from cli.config import FlexBenchDockerConfig
-from cli.utils import get_logger, get_available_gpus
+from cli.utils import get_available_gpus, get_logger
 
 log = get_logger(__name__)
 
@@ -29,7 +29,7 @@ class DockerOrchestrator:
             if self.config.docker_config.api_server:
                 log.info(f"Using external vLLM server: {self.config.docker_config.api_server}")
                 await self._check_external_vllm_server()
-                
+
                 # Only run FlexBench container
                 self._setup_for_external_vllm()
                 return await self._run_flexbench_with_external_vllm()
@@ -38,7 +38,7 @@ class DockerOrchestrator:
                 log.info("Creating managed vLLM server")
                 self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
                 log.info(f"Created temporary directory: {self.temp_dir}")
-                
+
                 self._create_compose_file()
 
                 if self.config.pull_images:
@@ -59,6 +59,7 @@ class DockerOrchestrator:
                 await self._cleanup_containers()
             if self.temp_dir and self.temp_dir.exists():
                 import shutil
+
                 shutil.rmtree(self.temp_dir)
                 log.info("Temporary files cleaned up")
 
@@ -75,15 +76,15 @@ class DockerOrchestrator:
         device_type = self.config.docker_config.device_type
         if device_type in ("cuda", "rocm") and not self.config.docker_config.gpu_devices:
             self.config.docker_config.gpu_devices = get_available_gpus(device_type)
-            log.info(f"Auto-detected {device_type.upper()} GPU devices: {self.config.docker_config.gpu_devices}")
+            log.info(
+                f"Auto-detected {device_type.upper()} GPU devices: {self.config.docker_config.gpu_devices}"
+            )
 
         compose_config = {
             "services": {
                 "flexbench": self._get_flexbench_service_config(results_dir, cache_dir),
             },
-            "networks": {
-                self.config.docker_config.network_name: {"driver": "bridge"}
-            }
+            "networks": {self.config.docker_config.network_name: {"driver": "bridge"}},
         }
 
         # Only add vLLM service if not using external server
@@ -93,13 +94,15 @@ class DockerOrchestrator:
         try:
             import yaml
         except ImportError:
-            raise ImportError("PyYAML is required for CLI functionality. Install with: pip install pyyaml") from None
+            raise ImportError(
+                "PyYAML is required for CLI functionality. Install with: pip install pyyaml"
+            ) from None
 
         if self.temp_dir is None:
             raise RuntimeError("Temp directory not initialized")
 
         self.compose_file = self.temp_dir / "docker-compose.yml"
-        with open(self.compose_file, 'w') as f:
+        with open(self.compose_file, "w") as f:
             yaml.dump(compose_config, f, default_flow_style=False, allow_unicode=True)
 
         log.info(f"Created docker-compose.yml at {self.compose_file}")
@@ -116,26 +119,30 @@ class DockerOrchestrator:
             "volumes": [
                 f"{cache_dir}:/root/.cache/huggingface",
                 "/proc/cpuinfo:/proc/cpuinfo:ro",
-                "/proc/meminfo:/proc/meminfo:ro"
+                "/proc/meminfo:/proc/meminfo:ro",
             ],
             "environment": {
                 "HF_HOME": "/root/.cache/huggingface",
                 "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
-                "VLLM_LOGGING_LEVEL": os.getenv("VLLM_LOGGING_LEVEL", "DEBUG")
+                "VLLM_LOGGING_LEVEL": os.getenv("VLLM_LOGGING_LEVEL", "DEBUG"),
             },
             "healthcheck": {
                 "test": ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"],
                 "interval": "30s",
                 "timeout": "30s",
                 "retries": 15,
-                "start_period": "180s"
+                "start_period": "180s",
             },
             "command": [
-                "--model", self.config.benchmark_config.remote_model_path,
-                "--host", "0.0.0.0",
-                "--port", "8000",
-                "--max-model-len", str(self.config.docker_config.vllm_max_model_len),
-            ]
+                "--model",
+                self.config.benchmark_config.remote_model_path,
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--max-model-len",
+                str(self.config.docker_config.vllm_max_model_len),
+            ],
         }
 
         # Device-specific configuration
@@ -152,18 +159,16 @@ class DockerOrchestrator:
     def _apply_device_config(self, config: dict[str, Any], device_type: str) -> None:
         """Apply device-specific configuration to vLLM service."""
         gpu_devices = self.config.docker_config.gpu_devices or ["0"]
-        
+
         if device_type == "cuda":
             config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(gpu_devices)
             config["ipc"] = "host"
             config["deploy"] = {
                 "resources": {
                     "reservations": {
-                        "devices": [{
-                            "driver": "nvidia",
-                            "capabilities": ["gpu"],
-                            "device_ids": gpu_devices
-                        }]
+                        "devices": [
+                            {"driver": "nvidia", "capabilities": ["gpu"], "device_ids": gpu_devices}
+                        ]
                     }
                 }
             }
@@ -183,12 +188,14 @@ class DockerOrchestrator:
             config["environment"]["VLLM_TARGET_DEVICE"] = device_type
 
         # Add tensor parallel if explicitly specified
-        if (device_type in ("cuda", "rocm") and 
-            self.config.docker_config.tensor_parallel_size and 
-            self.config.docker_config.tensor_parallel_size > 1):
-            config["command"].extend([
-                "--tensor-parallel-size", str(self.config.docker_config.tensor_parallel_size)
-            ])
+        if (
+            device_type in ("cuda", "rocm")
+            and self.config.docker_config.tensor_parallel_size
+            and self.config.docker_config.tensor_parallel_size > 1
+        ):
+            config["command"].extend(
+                ["--tensor-parallel-size", str(self.config.docker_config.tensor_parallel_size)]
+            )
             config["command"].append("--disable-log-requests")
         if self.config.docker_config.vllm_memory_limit:
             config["mem_limit"] = self.config.docker_config.vllm_memory_limit
@@ -202,24 +209,17 @@ class DockerOrchestrator:
             "container_name": "flexbench-runner",
             "platform": "linux/amd64",  # mlcommons-loadgen wheel compatibility
             "networks": [self.config.docker_config.network_name],
-            "volumes": [
-                f"{results_dir}:/app/results",
-                f"{cache_dir}:/root/.cache/huggingface"
-            ],
+            "volumes": [f"{results_dir}:/app/results", f"{cache_dir}:/root/.cache/huggingface"],
             "environment": {
                 "HF_HOME": "/root/.cache/huggingface",
-                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO")
+                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
             },
-            "command": self._get_benchmark_command_args()
+            "command": self._get_benchmark_command_args(),
         }
 
         # Only add dependency on vLLM service if not using external server
         if not self.config.docker_config.api_server:
-            config["depends_on"] = {
-                "vllm-server": {
-                    "condition": "service_healthy"
-                }
-            }
+            config["depends_on"] = {"vllm-server": {"condition": "service_healthy"}}
 
         if self.config.docker_config.flexbench_memory_limit:
             config["mem_limit"] = self.config.docker_config.flexbench_memory_limit
@@ -231,18 +231,29 @@ class DockerOrchestrator:
         config = self.config.benchmark_config
 
         # Use external API server if specified, otherwise use containerized vLLM
-        api_server_url = (self.config.docker_config.api_server or 
-                         f"http://vllm-server:{self.config.docker_config.vllm_port}")
+        api_server_url = (
+            self.config.docker_config.api_server
+            or f"http://vllm-server:{self.config.docker_config.vllm_port}"
+        )
 
         args = [
-            "python", "-m", "flexbench",
-            "--model-path", config.model_path,
-            "--api-server", api_server_url,
-            "--scenario", config.scenario,
-            "--dataset-path", config.dataset_config.path,
-            "--dataset-input-column", config.dataset_config.input_column,
-            "--backend", "loadgen",
-            "--output-dir", "/app/results"
+            "python",
+            "-m",
+            "flexbench",
+            "--model-path",
+            config.model_path,
+            "--api-server",
+            api_server_url,
+            "--scenario",
+            config.scenario,
+            "--dataset-path",
+            config.dataset_config.path,
+            "--dataset-input-column",
+            config.dataset_config.input_column,
+            "--backend",
+            "loadgen",
+            "--output-dir",
+            "/app/results",
         ]
 
         # Add optional arguments
@@ -253,7 +264,9 @@ class DockerOrchestrator:
             args.extend(["--dataset-output-column", config.dataset_config.output_column])
 
         if config.dataset_config.system_prompt_column:
-            args.extend(["--dataset-system-prompt-column", config.dataset_config.system_prompt_column])
+            args.extend(
+                ["--dataset-system-prompt-column", config.dataset_config.system_prompt_column]
+            )
 
         if config.dataset_config.split != "train":
             args.extend(["--dataset-split", config.dataset_config.split])
@@ -294,20 +307,16 @@ class DockerOrchestrator:
     async def _pull_or_build_vllm_image(self):
         """Pull Docker image or build from source if needed."""
         device_type = self.config.docker_config.device_type
-        
+
         # Only ARM builds from source by default (no public image available)
         if device_type == "arm":
             await self._build_vllm_from_source()
         else:
             vllm_image = self.config.docker_config.vllm_image
             log.info(f"Pulling Docker image: {vllm_image}")
-            
-            result = subprocess.run(
-                ["docker", "pull", vllm_image],
-                capture_output=True,
-                text=True
-            )
-            
+
+            result = subprocess.run(["docker", "pull", vllm_image], capture_output=True, text=True)
+
             if result.returncode != 0:
                 log.warning(f"Failed to pull {vllm_image}: {result.stderr}")
 
@@ -321,13 +330,20 @@ class DockerOrchestrator:
 
             # Clone vLLM repository
             log.info(f"Cloning vLLM repository from {self.config.docker_config.vllm_repo}")
-            result = subprocess.run([
-                "git", "clone",
-                "--branch", self.config.docker_config.vllm_branch,
-                "--depth", "1",
-                self.config.docker_config.vllm_repo,
-                str(vllm_dir)
-            ], capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--branch",
+                    self.config.docker_config.vllm_branch,
+                    "--depth",
+                    "1",
+                    self.config.docker_config.vllm_repo,
+                    str(vllm_dir),
+                ],
+                capture_output=True,
+                text=True,
+            )
 
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clone vLLM repository: {result.stderr}")
@@ -335,27 +351,30 @@ class DockerOrchestrator:
             # Get Dockerfile and build command
             dockerfile_map = {
                 "cuda": "Dockerfile",
-                "arm": "Dockerfile.arm", 
+                "arm": "Dockerfile.arm",
                 "rocm": "Dockerfile.rocm",
-                "cpu": "Dockerfile.cpu"
+                "cpu": "Dockerfile.cpu",
             }
-            
+
             dockerfile_name = dockerfile_map.get(device_type)
             if not dockerfile_name:
                 raise RuntimeError(f"No Dockerfile mapping found for device type: {device_type}")
-                
+
             dockerfile_path = vllm_dir / "docker" / dockerfile_name
             if not dockerfile_path.exists():
                 raise RuntimeError(f"Dockerfile {dockerfile_name} not found in vLLM repository")
 
             # Build Docker command
             build_command = [
-                "docker", "build",
-                "-t", self.config.docker_config.custom_vllm_image_name,
-                "-f", str(dockerfile_path),
-                str(vllm_dir)
+                "docker",
+                "build",
+                "-t",
+                self.config.docker_config.custom_vllm_image_name,
+                "-f",
+                str(dockerfile_path),
+                str(vllm_dir),
             ]
-            
+
             # Add device-specific build options
             if device_type == "arm":
                 build_command.insert(2, "--platform")
@@ -372,7 +391,9 @@ class DockerOrchestrator:
                 for key, value in self.config.docker_config.vllm_build_args.items():
                     build_command.extend(["--build-arg", f"{key}={value}"])
 
-            log.info(f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}")
+            log.info(
+                f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}"
+            )
             log.info("This may take 10-30 minutes...")
 
             # Run the build
@@ -387,13 +408,15 @@ class DockerOrchestrator:
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to build vLLM image: {result.stderr}")
 
-            log.info(f"Successfully built vLLM image: {self.config.docker_config.custom_vllm_image_name}")
+            log.info(
+                f"Successfully built vLLM image: {self.config.docker_config.custom_vllm_image_name}"
+            )
             self.config.docker_config.vllm_image = self.config.docker_config.custom_vllm_image_name
 
     async def _build_flexbench_image(self):
         """Build FlexBench Docker image."""
-        project_root = Path(__file__).parent.parent
-        dockerfile_path = project_root / "Dockerfile"
+        flexbench_root = Path(__file__).parent.parent / "flexbench"
+        dockerfile_path = flexbench_root / "Dockerfile"
 
         if not dockerfile_path.exists():
             raise RuntimeError(f"Dockerfile not found at {dockerfile_path}")
@@ -403,11 +426,15 @@ class DockerOrchestrator:
         env = {"DOCKER_BUILDKIT": "1"}
         result = subprocess.run(
             [
-                "docker", "build",
-                "--platform", "linux/amd64",
-                "--ulimit", "nofile=65536:65536",
-                "-t", self.config.docker_config.flexbench_image,
-                str(project_root)
+                "docker",
+                "build",
+                "--platform",
+                "linux/amd64",
+                "--ulimit",
+                "nofile=65536:65536",
+                "-t",
+                self.config.docker_config.flexbench_image,
+                str(flexbench_root),
             ],
             capture_output=True,
             text=True,
@@ -430,7 +457,7 @@ class DockerOrchestrator:
             ["docker", "compose", "-f", str(self.compose_file), "up", "-d"],
             capture_output=True,
             text=True,
-            cwd=self.temp_dir
+            cwd=self.temp_dir,
         )
 
         if result.returncode != 0:
@@ -443,14 +470,17 @@ class DockerOrchestrator:
         """Wait for vLLM server to be ready."""
         log.info("Waiting for vLLM server to be ready...")
 
-        import aiohttp
         import asyncio
+
+        import aiohttp
 
         async with aiohttp.ClientSession() as session:
             start_time = time.time()
             while time.time() - start_time < self.config.wait_timeout:
                 try:
-                    async with session.get(f"http://localhost:{self.config.docker_config.vllm_port}/health") as resp:
+                    async with session.get(
+                        f"http://localhost:{self.config.docker_config.vllm_port}/health"
+                    ) as resp:
                         if resp.status == 200:
                             log.info("vLLM server is ready")
                             return
@@ -478,7 +508,7 @@ class DockerOrchestrator:
         inspect_result = subprocess.run(
             ["docker", "inspect", "flexbench-runner", "--format={{.State.ExitCode}}"],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         exit_code = int(inspect_result.stdout.strip())
@@ -488,7 +518,7 @@ class DockerOrchestrator:
         # Load and return results
         results_dir = Path(self.config.docker_config.results_dir or "results")
         results_file = results_dir / "benchmark_results.json"
-        
+
         if results_file.exists():
             with open(results_file) as f:
                 result = json.load(f)
@@ -508,7 +538,7 @@ class DockerOrchestrator:
         subprocess.run(
             ["docker", "compose", "-f", str(self.compose_file), "down"],
             capture_output=True,
-            cwd=self.temp_dir
+            cwd=self.temp_dir,
         )
         log.info("Containers cleaned up")
 
@@ -521,10 +551,18 @@ class DockerOrchestrator:
 
         try:
             result = subprocess.run(
-                ["docker", "ps", "-a", "--filter", "name=vllm-server", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"],
+                [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--filter",
+                    "name=vllm-server",
+                    "--format",
+                    "table {{.Names}}\t{{.Status}}\t{{.Ports}}",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             log.debug(f"vLLM container status: {result.stdout}")
         except Exception as e:
@@ -535,7 +573,7 @@ class DockerOrchestrator:
                 ["docker", "inspect", "vllm-server", "--format", "{{.State.Health.Status}}"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             log.debug(f"vLLM container health: {result.stdout.strip()}")
         except Exception as e:
@@ -543,10 +581,7 @@ class DockerOrchestrator:
 
         try:
             result = subprocess.run(
-                ["docker", "logs", "vllm-server"],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["docker", "logs", "vllm-server"], capture_output=True, text=True, timeout=30
             )
             if result.stdout or result.stderr:
                 log.error("=== vLLM Server Container Logs ===")
@@ -559,10 +594,7 @@ class DockerOrchestrator:
 
         try:
             result = subprocess.run(
-                ["docker", "logs", "flexbench-runner"],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["docker", "logs", "flexbench-runner"], capture_output=True, text=True, timeout=30
             )
             if result.stdout or result.stderr:
                 log.error("=== FlexBench Container Logs ===")
@@ -571,17 +603,19 @@ class DockerOrchestrator:
                 if result.stderr:
                     log.error(f"stderr: {result.stderr}")
         except Exception as e:
-            log.debug(f"Could not get flexbench-runner logs (this is normal if it didn't start): {e}")
+            log.debug(
+                f"Could not get flexbench-runner logs (this is normal if it didn't start): {e}"
+            )
 
     async def _check_external_vllm_server(self):
         """Check if external vLLM server is healthy and accessible."""
         import aiohttp
-        
+
         api_server = self.config.docker_config.api_server
         health_url = f"{api_server.rstrip('/')}/health"
-        
+
         log.info(f"Checking external vLLM server health: {health_url}")
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(health_url, timeout=10) as resp:
@@ -599,7 +633,7 @@ class DockerOrchestrator:
         results_dir_str = self.config.docker_config.results_dir or "results"
         results_dir = Path(results_dir_str).absolute()
         results_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Create cache directory
         cache_dir = Path(self.config.docker_config.model_cache_dir).expanduser().absolute()
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -608,13 +642,12 @@ class DockerOrchestrator:
         """Run FlexBench directly against external vLLM server."""
         # For external vLLM, we run FlexBench directly without Docker orchestration
         log.info("Running FlexBench against external vLLM server...")
-        
+
         # Import and run FlexBench directly
-        from cli.main import run_benchmark_async
-        
+
         # Create a minimal config for direct execution
-        from cli.config import FlexBenchDockerConfig, DockerConfig
-        
+        from cli.config import FlexBenchDockerConfig
+
         # Update the config to not use Docker for vLLM
         direct_config = FlexBenchDockerConfig(
             benchmark_config=self.config.benchmark_config,
@@ -624,46 +657,53 @@ class DockerOrchestrator:
             build_flexbench=False,  # No FlexBench container needed
             wait_timeout=self.config.wait_timeout,
         )
-        
+
         # Run benchmark directly
-        from flexbench.main import main as flexbench_main
         import sys
-        from io import StringIO
-        
+
         # Capture the result
         result = {}
-        
+
         # Build args for direct FlexBench execution
         benchmark_args = self._get_direct_benchmark_args()
-        
+
         # Save original argv and replace
         original_argv = sys.argv
         try:
             sys.argv = ["flexbench"] + benchmark_args
-            
+
             # TODO: This needs to be implemented to run FlexBench directly
             # For now, return a placeholder
             log.warning("Direct FlexBench execution not yet implemented")
-            result = {"status": "external_server_mode", "api_server": self.config.docker_config.api_server}
-            
+            result = {
+                "status": "external_server_mode",
+                "api_server": self.config.docker_config.api_server,
+            }
+
         finally:
             sys.argv = original_argv
-            
+
         return result
 
     def _get_direct_benchmark_args(self) -> list[str]:
         """Get command arguments for direct FlexBench execution."""
         config = self.config.benchmark_config
-        
+
         args = [
-            "--model-path", config.model_path,
-            "--api-server", self.config.docker_config.api_server,
-            "--scenario", config.scenario,
-            "--dataset-path", config.dataset_config.path,
-            "--dataset-input-column", config.dataset_config.input_column,
-            "--backend", "loadgen"
+            "--model-path",
+            config.model_path,
+            "--api-server",
+            self.config.docker_config.api_server,
+            "--scenario",
+            config.scenario,
+            "--dataset-path",
+            config.dataset_config.path,
+            "--dataset-input-column",
+            config.dataset_config.input_column,
+            "--backend",
+            "loadgen",
         ]
-        
+
         # Add optional arguments
         if config.remote_model_path and config.remote_model_path != config.model_path:
             args.extend(["--remote-model-path", config.remote_model_path])
@@ -672,7 +712,9 @@ class DockerOrchestrator:
             args.extend(["--dataset-output-column", config.dataset_config.output_column])
 
         if config.dataset_config.system_prompt_column:
-            args.extend(["--dataset-system-prompt-column", config.dataset_config.system_prompt_column])
+            args.extend(
+                ["--dataset-system-prompt-column", config.dataset_config.system_prompt_column]
+            )
 
         if config.dataset_config.split != "train":
             args.extend(["--dataset-split", config.dataset_config.split])

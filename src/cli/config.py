@@ -1,20 +1,13 @@
 """Docker configuration for FlexBench CLI (text-only)."""
 
-import typing as tp
-from dataclasses import dataclass
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
 from cli.utils import get_logger
+from flexbench.config import BenchmarkConfig
 
 log = get_logger(__name__)
-
-# Add src directory to path for flexbench imports
-src_path = Path(__file__).parent.parent / "src"
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
-
-# Import the main configs from flexbench
-from flexbench.config import DatasetConfig, BenchmarkConfig, create_dataset_config, create_benchmark_config
 
 
 @dataclass
@@ -69,6 +62,7 @@ class DockerConfig:
         """Resolve device type if set to 'auto'."""
         if self.device_type == "auto":
             from cli.utils import detect_device_type
+
             self.device_type = detect_device_type()
             log.info(f"Auto-detected device type: {self.device_type}")
 
@@ -97,11 +91,14 @@ class DockerConfig:
                 image_defaults = {
                     "cuda": "vllm/vllm-openai:latest",
                     "cpu": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1",
-                    "rocm": "rocm/vllm:latest"
+                    "rocm": "rocm/vllm:latest",
                 }
                 if self.device_type not in image_defaults:
-                    raise ValueError(f"Unsupported device type: {self.device_type}. Supported types: {list(image_defaults.keys()) + ['arm']}")
+                    raise ValueError(
+                        f"Unsupported device type: {self.device_type}. Supported types: {list(image_defaults.keys()) + ['arm']}"
+                    )
                 self.vllm_image = image_defaults[self.device_type]
+
 
 @dataclass
 class FlexBenchDockerConfig:
@@ -118,4 +115,3 @@ class FlexBenchDockerConfig:
     pull_images: bool = True  # Pull latest images before run
     build_flexbench: bool = True  # Build flexbench image if needed
     wait_timeout: int = 300  # Timeout for container startup (seconds)
-

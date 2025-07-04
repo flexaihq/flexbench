@@ -7,8 +7,6 @@ import evaluate
 import nltk
 import numpy as np
 import pandas as pd
-import sys
-from pathlib import Path
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
@@ -41,9 +39,7 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     """Compute ROUGE scores and token statistics."""
     metric = evaluate.load("rouge")
 
-    log.debug(
-        f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references"
-    )
+    log.debug(f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references")
     if not preds or not refs:
         log.warning(f"Empty predictions ({len(preds)}) or references ({len(refs)})")
         return {}, 0
@@ -215,24 +211,18 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run accuracy evaluation")
-    parser.add_argument(
-        "--mlperf-accuracy-file", type=str, help="Path to the MLPerf accuracy file"
-    )
+    parser.add_argument("--mlperf-accuracy-file", type=str, help="Path to the MLPerf accuracy file")
     parser.add_argument("--model-path", type=str, help="Path to the model")
     parser.add_argument("--output-path", type=str, help="Path to the output directory")
     parser.add_argument(
         "--json-export", action="store_true", help="Export detailed results to JSON"
     )
-    parser.add_argument(
-        "--dtype", type=str, default="int32", help="Data type for token IDs"
-    )
+    parser.add_argument("--dtype", type=str, default="int32", help="Data type for token IDs")
 
     parser.add_argument("--dataset-path", required=True, help="Path to the dataset")
     parser.add_argument("--dataset-split", default="train", help="Dataset split to use")
     parser.add_argument("--input-column", required=True, help="Input column name")
-    parser.add_argument(
-        "--output-column", required=True, help="Output/reference column name"
-    )
+    parser.add_argument("--output-column", required=True, help="Output/reference column name")
     parser.add_argument("--system-prompt-column", help="System prompt column name")
     args = parser.parse_args()
 

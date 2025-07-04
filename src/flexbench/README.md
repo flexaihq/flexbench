@@ -5,6 +5,7 @@ This document covers the direct Python module usage of FlexBench for text model 
 ## When to Use the Module
 
 Use the Python module directly when you need:
+
 - **Development and debugging**: Direct access to all APIs and configurations
 - **Custom vLLM setups**: Your own vLLM server with specific configurations
 - **Integration into existing systems**: Embedding FlexBench in larger applications
@@ -101,7 +102,7 @@ The module requires the `--api-server` argument that specifies where your vLLM s
 
 ```bash
 --api-server http://localhost:8000    # Local vLLM server
---api-server http://remote-host:8000  # Remote vLLM server  
+--api-server http://remote-host:8000  # Remote vLLM server
 --api-server https://api.example.com  # Remote API with HTTPS
 ```
 
@@ -286,6 +287,7 @@ flexbench config --template         # Generate .env configuration template
 ```
 
 For issues specific to module usage, please check:
+
 1. vLLM server logs and status
 2. Network connectivity to the API server
 3. Model and dataset accessibility

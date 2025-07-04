@@ -2,7 +2,6 @@ import array
 import json
 import os
 import queue
-import sys
 import threading
 from pathlib import Path
 
@@ -62,9 +61,7 @@ class SUT_Server:
             if not token_text:
                 continue
             if not first_token_sent:
-                self.backend.process_completion(
-                    token_text, query_sample.id, is_first_token=True
-                )
+                self.backend.process_completion(token_text, query_sample.id, is_first_token=True)
                 first_token_sent = True
             text_cache += token_text
 
@@ -167,9 +164,7 @@ class SUT_SingleStream:
             if not token_text:
                 continue
             if not first_token_sent:
-                self.backend.process_completion(
-                    token_text, query_sample.id, is_first_token=True
-                )
+                self.backend.process_completion(token_text, query_sample.id, is_first_token=True)
                 first_token_sent = True
             text_cache += token_text
 
@@ -254,9 +249,7 @@ class LoadGenBackend(BaseBackend):
         else:
             lg.QuerySamplesComplete([response])
 
-    def process_completion(
-        self, text: str, query_id: int, is_first_token: bool = False
-    ) -> None:
+    def process_completion(self, text: str, query_id: int, is_first_token: bool = False) -> None:
         """Process completion text and submit response."""
         token_ids = self.tokenizer.encode(text, add_special_tokens=False)
         if not token_ids and not is_first_token:

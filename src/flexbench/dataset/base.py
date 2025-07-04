@@ -3,14 +3,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from tqdm import tqdm
-
-from flexbench.utils import get_logger
 from flexbench.config import DatasetConfig
+from flexbench.utils import get_logger
 
 log = get_logger(__name__)
-
-
 
 
 @dataclass
@@ -95,21 +91,13 @@ class MLPerfDataset(ABC):
 
     def get_references(self) -> ReferenceData:
         """Get raw reference data for accuracy evaluation."""
-        if (
-            not self.config.accuracy_mode
-            or not self.raw_samples
-            or not self.config.output_column
-        ):
-            log.debug(
-                "Cannot generate references: accuracy mode disabled or missing data"
-            )
+        if not self.config.accuracy_mode or not self.raw_samples or not self.config.output_column:
+            log.debug("Cannot generate references: accuracy mode disabled or missing data")
             return ReferenceData([], [], [])
 
         log.debug(f"Processing {len(self.raw_samples)} raw samples for references")
         try:
-            references = [
-                sample[self.config.output_column] for sample in self.raw_samples
-            ]
+            references = [sample[self.config.output_column] for sample in self.raw_samples]
             inputs = [sample[self.config.input_column] for sample in self.raw_samples]
             system_prompts = [
                 (

@@ -40,5 +40,5 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = [".", "src"]
+where = ["src"]
 include = ["cli*", "flexbench*"]

@@ -1,13 +1,12 @@
 """Main CLI entry point for FlexBench."""
 
-import asyncio
 import logging
 import os
 import sys
 
 from cli.args import app
 from cli.docker import DockerOrchestrator
-from cli.utils import get_logger, setup_logging, check_docker_available
+from cli.utils import check_docker_available, get_logger, setup_logging
 
 # Set up logging once at module level
 setup_logging()
@@ -21,25 +20,25 @@ async def run_benchmark_async(config, dry_run: bool = False) -> int:
         log.debug(f"Log level set to: {os.getenv('LOG_LEVEL', 'INFO')}")
         if log.isEnabledFor(logging.DEBUG):
             log.debug("Debug logging enabled")
-        
+
         # Check for dry run
         if dry_run:
             log.info("Dry run mode - showing configuration without running")
             log.info(f"Docker config: {config}")
             return 0
-        
+
         # Check Docker availability
         await check_docker_available()
-        
+
         # Run benchmark with Docker orchestration
         orchestrator = DockerOrchestrator(config)
         result = await orchestrator.run_benchmark()
-        
+
         log.info("Benchmark completed successfully")
         log.info(f"Results: {result.get('results_path', 'Unknown')}")
-        
+
         return 0
-        
+
     except KeyboardInterrupt:
         log.info("Benchmark interrupted by user")
         return 130

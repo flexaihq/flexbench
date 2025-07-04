@@ -1,14 +1,12 @@
 import threading
-import typing as tp
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import requests
 from transformers import AutoTokenizer
 
-from flexbench.config import DatasetConfig, BenchmarkConfig
+from flexbench.config import BenchmarkConfig
 from flexbench.dataset.text import TextDataset
 from flexbench.utils import get_logger
 
@@ -96,9 +94,7 @@ class BaseBackend(ABC):
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": (
-                        f"Bearer {self.config.api_token}"
-                        if self.config.api_token
-                        else None
+                        f"Bearer {self.config.api_token}" if self.config.api_token else None
                     ),
                 },
                 json={

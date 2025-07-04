@@ -1,6 +1,5 @@
 import asyncio
 import json
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,15 +104,11 @@ class VLLMBackend(BaseBackend):
                 self._update_counter()
 
         else:
-            raise ValueError(
-                f"Unknown scenario: {self.config.benchmarking_config.scenario}"
-            )
+            raise ValueError(f"Unknown scenario: {self.config.benchmarking_config.scenario}")
 
         duration = time.perf_counter() - start_time
         log.info(f"Benchmark completed in {duration:.2f}s")
-        log.info(
-            f"Successful requests: {len([o for o in outputs if o.success])}/{len(outputs)}"
-        )
+        log.info(f"Successful requests: {len([o for o in outputs if o.success])}/{len(outputs)}")
         self.stop()
         return outputs, duration
 
@@ -135,9 +130,7 @@ class VLLMBackend(BaseBackend):
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.api_url, headers=headers, json=payload
-            ) as resp:
+            async with session.post(self.api_url, headers=headers, json=payload) as resp:
                 resp.raise_for_status()
 
                 start_time = time.perf_counter()
