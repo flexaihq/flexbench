@@ -7,6 +7,11 @@ from cli.utils import get_logger
 
 log = get_logger(__name__)
 
+IMAGE_DEFAULTS = {
+    "cuda": "vllm/vllm-openai:latest",  # https://hub.docker.com/r/vllm/vllm-openai
+    "cpu": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1",  # https://gallery.ecr.aws/q9t5s3a7/vllm-cpu-release-repo
+    "rocm": "rocm/vllm:latest",  # https://hub.docker.com/r/rocm/vllm
+}
 
 @dataclass
 class DatasetConfig:
@@ -28,28 +33,37 @@ class DatasetConfig:
 class BenchmarkConfig:
     """Configuration for MLPerf benchmark runs."""
 
+    # Required parameters
     model_path: str
-    api_server: str
     dataset_config: DatasetConfig
     scenario: tp.Literal["Offline", "Server", "SingleStream"]
+    
+    # Performance configuration
     target_qps: float | None = None
-
     sweep: bool = False
     num_sweep_points: int = 10
-    tokenizer_path_override: str | None = None
-    remote_model_path: str | None = None
-    api_token: str | None = None
     batch_size: int | None = None
     max_generated_tokens: int | None = None
     max_input_tokens: int | None = None
     fixed_input_length: bool = False
-    accuracy: bool = False
     total_sample_count: int | None = None
+    
+    # Model and API configuration
+    remote_model_path: str | None = None
+    tokenizer_path_override: str | None = None
+    hf_token: str | None = None
+    vllm_server_token: str | None = None
+    backend: str = "loadgen"
+    
+    # Accuracy and output configuration
+    accuracy: bool = False
+    output_dir: str | None = None
+    
+    # MLPerf configuration
     model_name: str = "llama2-70b"
     config_path: str = "user.conf"
     enable_trace: bool = False
     log_output_to_stdout: bool = True
-    output_dir: str | None = None
 
     def __post_init__(self):
         if self.scenario in ("Offline", "Server"):
@@ -96,13 +110,12 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         dataset_config = create_dataset_config(args)
 
     return BenchmarkConfig(
+        # Required parameters
         model_path=args.model_path,
-        remote_model_path=getattr(args, "remote_model_path", args.model_path),
-        tokenizer_path_override=getattr(args, "tokenizer_path_override", None),
-        api_server=getattr(args, "api_server", "http://localhost:8000"),
-        api_token=getattr(args, "api_token", None),
         dataset_config=dataset_config,
         scenario=args.scenario,
+        
+        # Performance configuration
         target_qps=getattr(args, "target_qps", None),
         sweep=getattr(args, "sweep", False),
         num_sweep_points=getattr(args, "num_sweep_points", 10),
@@ -110,9 +123,24 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         max_generated_tokens=getattr(args, "max_generated_tokens", None),
         max_input_tokens=getattr(args, "max_input_tokens", None),
         fixed_input_length=getattr(args, "fixed_input_length", False),
-        accuracy=getattr(args, "accuracy", False),
         total_sample_count=getattr(args, "total_sample_count", None),
+        
+        # Model and API configuration
+        remote_model_path=getattr(args, "remote_model_path", args.model_path),
+        tokenizer_path_override=getattr(args, "tokenizer_path_override", None),
+        hf_token=getattr(args, "hf_token", None),
+        vllm_server_token=getattr(args, "vllm_server_token", None),
+        backend=getattr(args, "backend", "loadgen"),
+        
+        # Accuracy and output configuration
+        accuracy=getattr(args, "accuracy", False),
         output_dir=getattr(args, "output_dir", None),
+        
+        # MLPerf configuration (use defaults from dataclass)
+        model_name=getattr(args, "model_name", "llama2-70b"),
+        config_path=getattr(args, "config_path", "user.conf"),
+        enable_trace=getattr(args, "enable_trace", False),
+        log_output_to_stdout=getattr(args, "log_output_to_stdout", True),
     )
 
 
@@ -121,32 +149,30 @@ class DockerConfig:
     """Configuration for Docker containers."""
 
     # External vLLM server configuration
-    api_server: str | None = None  # If specified, use existing vLLM server instead of creating one
+    vllm_server: str | None = None  # If specified, use existing vLLM server instead of creating one
 
-    # Docker-specific settings
+    # Docker image configuration
     vllm_image: str | None = None  # Will be set based on device_type in __post_init__
     flexbench_image: str = "flexbench:latest"
     network_name: str = "flexbench-network"
 
-    # Device configuration
+    # Device and hardware configuration
     device_type: str = "auto"  # auto, cpu, cuda, rocm, arm
-
-    # GPU settings
     gpu_devices: list[str] | None = None  # e.g., ["0", "1"] for specific GPUs
     tensor_parallel_size: int | None = None  # Number of GPUs for tensor parallelism
 
-    # vLLM build settings (only used for ARM)
+    # vLLM build configuration (only used for ARM)
     vllm_repo: str = "https://github.com/vllm-project/vllm.git"
     vllm_branch: str = "main"
     vllm_build_args: str | dict[str, str] | None = None  # Additional build arguments
 
-    # vLLM container settings
+    # vLLM server configuration
     vllm_port: int = 8000
     vllm_max_model_len: int = 2048
     vllm_disable_log_requests: bool = True
-    vllm_gpu_memory_utilization: float = 0.9
+    vllm_gpu_memory_utilization: float = 0.9  # GPU memory utilization for vLLM
 
-    # Volume mounts
+    # Volume mounts and directories
     model_cache_dir: str = "~/.cache/huggingface"  # HuggingFace cache directory
     results_dir: str | None = None  # Host directory for results
 
@@ -195,29 +221,22 @@ class DockerConfig:
                 self.vllm_image = self.custom_vllm_image_name
             else:
                 # Other devices use public images
-                image_defaults = {
-                    "cuda": "vllm/vllm-openai:latest",
-                    "cpu": "public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1",
-                    "rocm": "rocm/vllm:latest",
-                }
-                if self.device_type not in image_defaults:
+                if self.device_type not in IMAGE_DEFAULTS:
                     raise ValueError(
-                        f"Unsupported device type: {self.device_type}. Supported types: {list(image_defaults.keys()) + ['arm']}"
+                        f"Unsupported device type: {self.device_type}. Supported types: {list(IMAGE_DEFAULTS.keys()) + ['arm']}"
                     )
-                self.vllm_image = image_defaults[self.device_type]
+                self.vllm_image = IMAGE_DEFAULTS[self.device_type]
 
 
 @dataclass
 class FlexBenchDockerConfig:
     """Complete configuration for FlexBench CLI with Docker orchestration."""
 
-    # Core benchmark configuration
+    # Core configuration components
     benchmark_config: BenchmarkConfig
-
-    # Docker-specific configuration
     docker_config: DockerConfig
 
-    # CLI-specific settings
+    # CLI execution configuration
     cleanup: bool = True  # Clean up containers after run
     pull_images: bool = True  # Pull latest images before run
     build_flexbench: bool = True  # Build flexbench image if needed

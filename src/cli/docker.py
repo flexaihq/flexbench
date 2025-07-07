@@ -25,8 +25,8 @@ class DockerOrchestrator:
     async def run_benchmark(self) -> dict[str, Any]:
         """Run complete benchmark with Docker orchestration."""
         try:
-            if self.config.docker_config.api_server:
-                log.info(f"Using external vLLM server: {self.config.docker_config.api_server}")
+            if self.config.docker_config.vllm_server:
+                log.info(f"Using external vLLM server: {self.config.docker_config.vllm_server}")
                 await self._check_external_vllm_server()
 
             self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
@@ -34,7 +34,7 @@ class DockerOrchestrator:
 
             self._create_compose_file()
 
-            if not self.config.docker_config.api_server and self.config.pull_images:
+            if not self.config.docker_config.vllm_server and self.config.pull_images:
                 await self._pull_or_build_vllm_image()
 
             if self.config.build_flexbench:
@@ -42,7 +42,7 @@ class DockerOrchestrator:
 
             await self._start_containers()
 
-            if not self.config.docker_config.api_server:
+            if not self.config.docker_config.vllm_server:
                 await self._wait_for_vllm_ready()
 
             return await self._run_flexbench()
@@ -79,7 +79,7 @@ class DockerOrchestrator:
             "networks": {self.config.docker_config.network_name: {"driver": "bridge"}},
         }
 
-        if not self.config.docker_config.api_server:
+        if not self.config.docker_config.vllm_server:
             compose_config["services"]["vllm-server"] = self._get_vllm_service_config(cache_dir)
 
         try:
@@ -114,6 +114,7 @@ class DockerOrchestrator:
             ],
             "environment": {
                 "HF_HOME": "/root/.cache/huggingface",
+                "HF_TOKEN": self.config.benchmark_config.hf_token or os.getenv("HF_TOKEN"),
                 "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
                 "VLLM_LOGGING_LEVEL": os.getenv("VLLM_LOGGING_LEVEL", "DEBUG"),
             },
@@ -206,13 +207,14 @@ class DockerOrchestrator:
             "volumes": [f"{results_dir}:/app/results", f"{cache_dir}:/root/.cache/huggingface"],
             "environment": {
                 "HF_HOME": "/root/.cache/huggingface",
+                "HF_TOKEN": self.config.benchmark_config.hf_token or os.getenv("HF_TOKEN"),
                 "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
             },
             "command": self._get_benchmark_command_args(),
         }
 
-        # Use host network when connecting to external API server for easier localhost access
-        if self.config.docker_config.api_server:
+        # Use host network when connecting to external vLLM server for easier localhost access
+        if self.config.docker_config.vllm_server:
             config["network_mode"] = "host"
         else:
             config["networks"] = [self.config.docker_config.network_name]
@@ -227,8 +229,8 @@ class DockerOrchestrator:
         """Get command arguments for FlexBench container."""
         config = self.config.benchmark_config
 
-        api_server_url = (
-            self.config.docker_config.api_server
+        vllm_server_url = (
+            self.config.docker_config.vllm_server
             or f"http://vllm-server:{self.config.docker_config.vllm_port}"
         )
 
@@ -239,7 +241,7 @@ class DockerOrchestrator:
             "--model-path",
             config.model_path,
             "--api-server",
-            api_server_url,
+            vllm_server_url,
             "--scenario",
             config.scenario,
             "--dataset-path",
@@ -247,7 +249,7 @@ class DockerOrchestrator:
             "--dataset-input-column",
             config.dataset_config.input_column,
             "--backend",
-            "loadgen",
+            config.backend,
             "--output-dir",
             "/app/results",
         ]
@@ -597,8 +599,8 @@ class DockerOrchestrator:
         """Check if external vLLM server is healthy and accessible."""
         import aiohttp
 
-        api_server = self.config.docker_config.api_server
-        health_url = f"{api_server.rstrip('/')}/health"
+        vllm_server = self.config.docker_config.vllm_server
+        health_url = f"{vllm_server.rstrip('/')}/health"
 
         log.info(f"Checking external vLLM server health: {health_url}")
 
@@ -611,4 +613,4 @@ class DockerOrchestrator:
                     else:
                         raise RuntimeError(f"External vLLM server returned status {resp.status}")
         except Exception as e:
-            raise RuntimeError(f"Failed to connect to external vLLM server {api_server}: {e}")
+            raise RuntimeError(f"Failed to connect to external vLLM server {vllm_server}: {e}")
