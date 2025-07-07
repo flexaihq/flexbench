@@ -272,8 +272,8 @@ class DockerOrchestrator:
         if config.tokenizer_path_override:
             args.extend(["--tokenizer-path-override", config.tokenizer_path_override])
 
-        if config.api_token:
-            args.extend(["--api-token", config.api_token])
+        if config.vllm_server_token:
+            args.extend(["--api-token", config.vllm_server_token])
 
         if config.target_qps is not None:
             args.extend(["--target-qps", str(config.target_qps)])
