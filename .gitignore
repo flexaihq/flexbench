@@ -1,6 +1,6 @@
 *.pyc
 .venv
-uv.lock
+# uv.lock
 src/flexbench/results
 *.egg-info
 build

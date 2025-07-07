@@ -1,9 +1,9 @@
 [project]
-name = "FlexBench"
+name = "flexbench-cli"
 
 version = "0.2.0"
 
-description = "FlexAI Universal Benchmarking"
+description = "FlexBench CLI - Docker orchestration for FlexAI Universal Benchmarking"
 
 readme = "README.md"
 
@@ -15,31 +15,20 @@ authors = [
 ]
 
 dependencies = [
-    "anyio>=4.9.0",
-    "cmind>=4.2.0",
-    "datasets>=3.5.0",
-    "evaluate>=0.4.3",
-    "mlcommons-loadgen>=5.0.15",
-    "nltk>=3.9.1",
-    "pandas>=2.2.3",
-    "pillow>=11.1.0",
-    "rouge-score>=0.1.2",
-    "sentencepiece>=0.2.0",
-    "transformers>=4.50.3",
+    "pyyaml>=6.0.0",
+    "aiohttp>=3.10.0",
 ]
 
-license = {text = "Apache 2.0"}
+license = "Apache-2.0"
 
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.12",
 ]
 
+[project.scripts]
+flexbench = "cli.main:main"
+
 [project.optional-dependencies]
-local = [
-    "flashinfer-python>=0.2.2,<0.2.3",
-    "vllm>=0.8.5",
-]
 
 [dependency-groups]
 dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]
@@ -48,8 +37,6 @@ dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["cli*"]
