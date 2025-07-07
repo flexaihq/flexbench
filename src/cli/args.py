@@ -103,7 +103,7 @@ def run(
     
     # === GPU CONFIGURATION ===
     gpu_devices: str | None = typer.Option(
-        None, help="Comma-separated GPU device IDs (e.g., '0,1,2'). Auto-detects if not specified."
+        None, help="Comma-separated GPU device IDs (e.g., '0,1,2'). Auto-detects if not specified.", envvar=["CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES"]
     ),
     tensor_parallel_size: int | None = typer.Option(
         None, help="Number of GPUs to use for tensor parallelism (e.g., 2, 4, 8)"
