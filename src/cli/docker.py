@@ -133,6 +133,8 @@ class DockerOrchestrator:
                 "8000",
                 "--max-model-len",
                 str(self.config.docker_config.vllm_max_model_len),
+                "--gpu-memory-utilization",
+                str(self.config.docker_config.vllm_gpu_memory_utilization),
             ],
         }
 
@@ -149,10 +151,12 @@ class DockerOrchestrator:
 
     def _apply_device_config(self, config: dict[str, Any], device_type: str) -> dict[str, Any]:
         """Apply device-specific configuration to vLLM service."""
-        gpu_devices = self.config.docker_config.gpu_devices or ["0"]
+        config["environment"]["VLLM_TARGET_DEVICE"] = device_type
 
         if device_type == "cuda":
-            config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(gpu_devices)
+            gpu_devices = self.config.docker_config.gpu_devices or ["0"]
+            container_gpu_indices = [str(i) for i in range(len(gpu_devices))]
+            config["environment"]["CUDA_VISIBLE_DEVICES"] = ",".join(container_gpu_indices)
             config["ipc"] = "host"
             config["deploy"] = {
                 "resources": {
@@ -164,9 +168,11 @@ class DockerOrchestrator:
                 }
             }
         elif device_type == "rocm":
+            gpu_devices = self.config.docker_config.gpu_devices or ["0"]
             config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
             config["devices"] = ["/dev/kfd", "/dev/dri"]
             config["group_add"] = ["video", "render"]
+
         elif device_type in ("cpu", "arm"):
             config["environment"]["VLLM_TARGET_DEVICE"] = "cpu"
             config["environment"]["VLLM_CPU_KVCACHE_SPACE"] = "4"
@@ -175,8 +181,9 @@ class DockerOrchestrator:
             config["privileged"] = True
             config["security_opt"] = ["seccomp:unconfined"]
             config["cap_add"] = ["SYS_NICE"]
+
         else:
-            config["environment"]["VLLM_TARGET_DEVICE"] = device_type
+            raise ValueError(f"Unsupported device type: {device_type}")
 
         # Add tensor parallel if explicitly specified
         if (
@@ -187,12 +194,6 @@ class DockerOrchestrator:
             config["command"].extend(
                 ["--tensor-parallel-size", str(self.config.docker_config.tensor_parallel_size)]
             )
-
-        if self.config.docker_config.vllm_disable_log_requests:
-            config["command"].append("--disable-log-requests")
-
-        if self.config.docker_config.vllm_memory_limit:
-            config["mem_limit"] = self.config.docker_config.vllm_memory_limit
 
         return config
 

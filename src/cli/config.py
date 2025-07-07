@@ -144,6 +144,7 @@ class DockerConfig:
     vllm_port: int = 8000
     vllm_max_model_len: int = 2048
     vllm_disable_log_requests: bool = True
+    vllm_gpu_memory_utilization: float = 0.9
 
     # Volume mounts
     model_cache_dir: str = "~/.cache/huggingface"  # HuggingFace cache directory

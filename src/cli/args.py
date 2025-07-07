@@ -120,6 +120,9 @@ def run(
     vllm_disable_log_requests: bool = typer.Option(
         True, help="Disable vLLM request logging for better performance"
     ),
+    vllm_gpu_memory_utilization: float = typer.Option(
+        0.9, help="GPU memory utilization for vLLM (0.1-1.0)"
+    ),
     model_cache_dir: Annotated[
         str, typer.Option(help="Model cache directory (HuggingFace cache)", envvar="HF_HOME")
     ] = "~/.cache/huggingface",
@@ -211,6 +214,7 @@ def run(
         vllm_port=vllm_port,
         vllm_max_model_len=vllm_max_model_len,
         vllm_disable_log_requests=vllm_disable_log_requests,
+        vllm_gpu_memory_utilization=vllm_gpu_memory_utilization,
         model_cache_dir=model_cache_dir,
         vllm_memory_limit=vllm_memory_limit,
         flexbench_memory_limit=flexbench_memory_limit,
@@ -243,6 +247,7 @@ def run(
         vllm_port=vllm_port,
         vllm_max_model_len=vllm_max_model_len,
         vllm_disable_log_requests=vllm_disable_log_requests,
+        vllm_gpu_memory_utilization=vllm_gpu_memory_utilization,
         model_cache_dir=model_cache_dir,
         results_dir=output_dir,
         vllm_memory_limit=vllm_memory_limit,
