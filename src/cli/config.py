@@ -13,6 +13,7 @@ IMAGE_DEFAULTS = {
     "rocm": "rocm/vllm:latest",  # https://hub.docker.com/r/rocm/vllm
 }
 
+
 @dataclass
 class DatasetConfig:
     """Configuration for dataset loading and column mapping."""
@@ -37,7 +38,7 @@ class BenchmarkConfig:
     model_path: str
     dataset_config: DatasetConfig
     scenario: tp.Literal["Offline", "Server", "SingleStream"]
-    
+
     # Performance configuration
     target_qps: float | None = None
     sweep: bool = False
@@ -47,18 +48,18 @@ class BenchmarkConfig:
     max_input_tokens: int | None = None
     fixed_input_length: bool = False
     total_sample_count: int | None = None
-    
+
     # Model and API configuration
     remote_model_path: str | None = None
     tokenizer_path_override: str | None = None
     hf_token: str | None = None
     vllm_server_token: str | None = None
     backend: str = "loadgen"
-    
+
     # Accuracy and output configuration
     accuracy: bool = False
     output_dir: str | None = None
-    
+
     # MLPerf configuration
     model_name: str = "llama2-70b"
     config_path: str = "user.conf"
@@ -114,7 +115,6 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         model_path=args.model_path,
         dataset_config=dataset_config,
         scenario=args.scenario,
-        
         # Performance configuration
         target_qps=getattr(args, "target_qps", None),
         sweep=getattr(args, "sweep", False),
@@ -124,18 +124,15 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         max_input_tokens=getattr(args, "max_input_tokens", None),
         fixed_input_length=getattr(args, "fixed_input_length", False),
         total_sample_count=getattr(args, "total_sample_count", None),
-        
         # Model and API configuration
         remote_model_path=getattr(args, "remote_model_path", args.model_path),
         tokenizer_path_override=getattr(args, "tokenizer_path_override", None),
         hf_token=getattr(args, "hf_token", None),
         vllm_server_token=getattr(args, "vllm_server_token", None),
         backend=getattr(args, "backend", "loadgen"),
-        
         # Accuracy and output configuration
         accuracy=getattr(args, "accuracy", False),
         output_dir=getattr(args, "output_dir", None),
-        
         # MLPerf configuration (use defaults from dataclass)
         model_name=getattr(args, "model_name", "llama2-70b"),
         config_path=getattr(args, "config_path", "user.conf"),
