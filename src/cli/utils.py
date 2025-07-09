@@ -72,7 +72,7 @@ def get_available_gpus(device_type: str) -> list[str]:
 def _check_command(command: str) -> bool:
     """Check if command exists and runs successfully."""
     try:
-        result = subprocess.run([command], capture_output=True, timeout=5)
+        result = subprocess.run([command], capture_output=True, timeout=30)
         return result.returncode == 0
     except:
         return False
