@@ -37,46 +37,114 @@ Examples:
 @app.command()
 def run(
     # === REQUIRED PARAMETERS ===
-    model_path: str = typer.Option(..., help="Model name on HuggingFace or local path"),
-    dataset_path: str = typer.Option(..., help="Dataset path on HuggingFace or local pickle file"),
-    dataset_input_column: str = typer.Option(..., help="Input text column name in dataset"),
-    scenario: str = typer.Option(..., help="MLPerf scenario: Offline, Server, or SingleStream"),
+    model_path: str = typer.Option(
+        "HuggingFaceTB/SmolLM2-135M-Instruct",
+        help="Model name on HuggingFace or local path",
+    ),
+    dataset_path: str = typer.Option(
+        "ctuning/MLPerf-OpenOrca",
+        help="Dataset path on HuggingFace or local pickle file",
+    ),
+    dataset_input_column: str = typer.Option(
+        "question",
+        help="Input text column name in dataset",
+    ),
+    scenario: str = typer.Option(
+        "Offline",
+        help="MLPerf scenario: Offline, Server, or SingleStream",
+    ),
     # === PERFORMANCE CONFIGURATION ===
     target_qps: float | None = typer.Option(
-        None, help="Target queries per second (required unless using sweep mode)"
+        10,
+        help="Target queries per second (required unless using sweep mode)",
     ),
     sweep: bool = typer.Option(
-        False, help="Run sweep mode: find max QPS then sweep different values"
+        False,
+        help="Run sweep mode: find max QPS then sweep different values",
     ),
-    num_sweep_points: int = typer.Option(10, help="Number of QPS points to test in sweep mode"),
-    total_sample_count: int | None = typer.Option(None, help="Number of samples to process"),
-    batch_size: int | None = typer.Option(None, help="Batch size for offline scenario"),
-    max_generated_tokens: int = typer.Option(1024, help="Maximum tokens to generate"),
+    num_sweep_points: int = typer.Option(
+        10,
+        help="Number of QPS points to test in sweep mode",
+    ),
+    total_sample_count: int | None = typer.Option(
+        100,
+        help="Number of samples to process",
+    ),
+    batch_size: int | None = typer.Option(
+        None,
+        help="Batch size for offline scenario. If not specified, loads the entire dataset. at once",
+    ),
+    max_generated_tokens: int = typer.Option(
+        1024,
+        help="Maximum tokens to generate",
+    ),
     max_input_tokens: int | None = typer.Option(
-        None, help="Maximum input tokens (longer inputs truncated)"
+        None,
+        help="Maximum input tokens (longer inputs truncated)",
     ),
-    fixed_input_length: bool = typer.Option(False, help="Pad inputs to max-input-tokens"),
+    fixed_input_length: bool = typer.Option(
+        False,
+        help="Pad inputs to max-input-tokens",
+    ),
     # === MODEL AND API CONFIGURATION ===
-    remote_model_path: str | None = typer.Option(None, help="Model name for remote endpoint"),
-    tokenizer_path_override: str | None = typer.Option(None, help="Custom tokenizer path"),
+    remote_model_path: str | None = typer.Option(
+        None,
+        help="Model name for remote endpoint",
+    ),
+    tokenizer_path_override: str | None = typer.Option(
+        None,
+        help="Custom tokenizer path",
+    ),
     hf_token: Annotated[
-        str | None, typer.Option(help="HuggingFace authentication token", envvar="HF_TOKEN")
+        str | None,
+        typer.Option(
+            help="HuggingFace authentication token",
+            envvar="HF_TOKEN",
+        ),
     ] = None,
-    backend: str = typer.Option("loadgen", help="Benchmark backend: loadgen or vllm"),
+    backend: str = typer.Option(
+        "loadgen",
+        help="Benchmark backend: loadgen or vllm",
+    ),
     # === DATASET CONFIGURATION ===
     dataset_output_column: str | None = typer.Option(
-        None, help="Reference text column (required for accuracy mode)"
+        None,
+        help="Reference text column (required for accuracy mode)",
     ),
-    dataset_split: str = typer.Option("train", help="Dataset split to use"),
-    dataset_system_prompt_column: str | None = typer.Option(None, help="System prompt column name"),
+    dataset_split: str = typer.Option(
+        "train",
+        help="Dataset split to use",
+    ),
+    dataset_system_prompt_column: str | None = typer.Option(
+        None,
+        help="System prompt column name",
+    ),
     # === ACCURACY AND OUTPUT CONFIGURATION ===
-    accuracy: bool = typer.Option(False, help="Run accuracy evaluation"),
-    output_dir: str | None = typer.Option(None, help="Directory to store results"),
+    accuracy: bool = typer.Option(
+        False,
+        help="Run accuracy evaluation",
+    ),
+    output_dir: str | None = typer.Option(
+        None,
+        help="Directory to store results",
+    ),
     # === MLPERF CONFIGURATION ===
-    model_name: str = typer.Option("llama2-70b", help="Model name for MLPerf configuration"),
-    config_path: str = typer.Option("user.conf", help="MLPerf configuration file path"),
-    enable_trace: bool = typer.Option(False, help="Enable MLPerf trace logging"),
-    log_output_to_stdout: bool = typer.Option(True, help="Log MLPerf output to stdout"),
+    model_name: str = typer.Option(
+        "llama2-70b",
+        help="Model name for MLPerf configuration",
+    ),
+    config_path: str = typer.Option(
+        "user.conf",
+        help="MLPerf configuration file path",
+    ),
+    enable_trace: bool = typer.Option(
+        False,
+        help="Enable MLPerf trace logging",
+    ),
+    log_output_to_stdout: bool = typer.Option(
+        True,
+        help="Log MLPerf output to stdout",
+    ),
     # === DOCKER CONFIGURATION ===
     vllm_server: str | None = typer.Option(
         None,
@@ -90,8 +158,14 @@ def run(
         None,
         help="Full vLLM Docker image name (e.g. 'vllm/vllm-openai:latest', 'public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1', 'rocm/vllm:latest'). Overrides default for device type. Highly recommended for reproducibility.",
     ),
-    flexbench_image: str = typer.Option("flexbench:latest", help="FlexBench Docker image"),
-    network_name: str = typer.Option("flexbench-network", help="Docker network name"),
+    flexbench_image: str = typer.Option(
+        "flexbench:latest",
+        help="FlexBench Docker image",
+    ),
+    network_name: str = typer.Option(
+        "flexbench-network",
+        help="Docker network name",
+    ),
     device_type: DeviceType = typer.Option(
         DeviceType.auto, help="Hardware device type (auto-detects: cuda -> rocm -> arm -> cpu)"
     ),
@@ -102,44 +176,80 @@ def run(
         envvar=["CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES"],
     ),
     tensor_parallel_size: int | None = typer.Option(
-        None, help="Number of GPUs to use for tensor parallelism (e.g., 2, 4, 8)"
+        None,
+        help="Number of GPUs to use for tensor parallelism (e.g., 2, 4, 8)",
     ),
     # === VLLM SERVER CONFIGURATION ===
-    vllm_port: int = typer.Option(8000, help="Port for vLLM server"),
-    vllm_max_model_len: int = typer.Option(2048, help="Maximum model length"),
+    vllm_port: int = typer.Option(
+        8000,
+        help="Port for vLLM server",
+    ),
+    vllm_max_model_len: int = typer.Option(
+        2048,
+        help="Maximum model length",
+    ),
     vllm_disable_log_requests: bool = typer.Option(
-        True, help="Disable vLLM request logging for better performance"
+        True,
+        help="Disable vLLM request logging for better performance",
     ),
     vllm_gpu_memory_utilization: float = typer.Option(
-        0.9, help="GPU memory utilization for vLLM (0.1-1.0)"
+        0.9,
+        help="GPU memory utilization for vLLM (0.1-1.0)",
     ),
     # === VOLUME MOUNTS AND DIRECTORIES ===
     model_cache_dir: Annotated[
-        str, typer.Option(help="Model cache directory (HuggingFace cache)", envvar="HF_HOME")
+        str,
+        typer.Option(
+            help="Model cache directory (HuggingFace cache)",
+            envvar="HF_HOME",
+        ),
     ] = "~/.cache/huggingface",
     # === CONTAINER RESOURCE LIMITS ===
-    vllm_memory_limit: str | None = typer.Option(None, help="vLLM memory limit (e.g., '8g')"),
+    vllm_memory_limit: str | None = typer.Option(
+        None,
+        help="vLLM memory limit (e.g., '8g')",
+    ),
     flexbench_memory_limit: str | None = typer.Option(
-        None, help="FlexBench memory limit (e.g., '4g')"
+        None,
+        help="FlexBench memory limit (e.g., '4g')",
     ),
     # === BUILD CONFIGURATION ===
     vllm_repo: str = typer.Option(
-        "https://github.com/vllm-project/vllm.git", help="vLLM repository URL"
+        "https://github.com/vllm-project/vllm.git",
+        help="vLLM repository URL",
     ),
-    vllm_branch: str = typer.Option("main", help="vLLM branch/tag to build"),
-    vllm_build_args: str | None = typer.Option(None, help="Additional vLLM build arguments"),
+    vllm_branch: str = typer.Option(
+        "main",
+        help="vLLM branch/tag to build",
+    ),
+    vllm_build_args: str | None = typer.Option(
+        None,
+        help="Additional vLLM build arguments",
+    ),
     # === CLI EXECUTION CONFIGURATION ===
     cleanup: bool = typer.Option(
-        True, "--cleanup/--no-cleanup", help="Clean up containers after run (default: True)"
+        True,
+        "--cleanup/--no-cleanup",
+        help="Clean up containers after run (default: True)",
     ),
     pull_images: bool = typer.Option(
-        True, "--pull/--no-pull", help="Pull latest Docker images before run (default: True)"
+        True,
+        "--pull/--no-pull",
+        help="Pull latest Docker images before run (default: True)",
     ),
     build_flexbench: bool = typer.Option(
-        True, "--build/--no-build", help="Build FlexBench image if needed (default: True)"
+        True,
+        "--build/--no-build",
+        help="Build FlexBench image if needed (default: True)",
     ),
-    wait_timeout: int = typer.Option(300, help="Container startup timeout (seconds)"),
-    dry_run: bool = typer.Option(False, help="Show config without running"),
+    wait_timeout: int = typer.Option(
+        300,
+        help="Container startup timeout (seconds)",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        help="Show config without running",
+    ),
 ):
     """
     Run FlexBench benchmarking with Docker orchestration.
