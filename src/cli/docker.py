@@ -231,7 +231,7 @@ class DockerOrchestrator:
 
         vllm_server_url = (
             self.config.docker_config.vllm_server
-            or f"http://vllm-server:{self.config.docker_config.vllm_port}"
+            or "http://vllm-server:8000"  # Internal container port is always 8000
         )
 
         args = [

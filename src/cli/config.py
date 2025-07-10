@@ -164,7 +164,7 @@ class DockerConfig:
     vllm_build_args: str | dict[str, str] | None = None  # Additional build arguments
 
     # vLLM server configuration
-    vllm_port: int = 8000
+    vllm_port: int = 8000  # Host port to forward vLLM server (internal port is always 8000)
     vllm_max_model_len: int = 2048
     vllm_disable_log_requests: bool = True
     vllm_gpu_memory_utilization: float = 0.9  # GPU memory utilization for vLLM
