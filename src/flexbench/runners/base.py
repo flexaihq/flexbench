@@ -1,6 +1,5 @@
 import threading
 from abc import ABC, abstractmethod
-from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -19,11 +18,7 @@ class BaseRunner(ABC):
     def __init__(self, config: BenchmarkConfig):
         self.config = config
 
-        self.results_dir = (
-            Path(config.output_dir)
-            if config.output_dir
-            else Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        )
+        self.results_dir = Path(config.output_dir) if config.output_dir else Path("results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod

@@ -21,6 +21,9 @@ class DockerOrchestrator:
         self.config = config
         self.compose_file: Path | None = None
         self.temp_dir: Path | None = None
+        # Generate timestamp for this run to use consistently
+        from datetime import datetime
+        self.timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
 
     async def run_benchmark(self) -> dict[str, Any]:
         """Run complete benchmark with Docker orchestration."""
@@ -234,6 +237,9 @@ class DockerOrchestrator:
             or "http://vllm-server:8000"  # Internal container port is always 8000
         )
 
+        # Use the timestamp created during initialization
+        container_output_dir = f"/app/results/{self.timestamp}"
+
         args = [
             "python",
             "-m",
@@ -251,7 +257,7 @@ class DockerOrchestrator:
             "--backend",
             config.backend,
             "--output-dir",
-            "/app/results",
+            container_output_dir,
         ]
 
         # Add optional arguments
@@ -505,16 +511,18 @@ class DockerOrchestrator:
             raise RuntimeError(f"FlexBench container failed with exit code {exit_code}")
 
         results_dir = Path(self.config.docker_config.results_dir or "results")
-        results_file = results_dir / "benchmark_results.json"
+        # Look for results in the timestamped subdirectory
+        timestamped_results_dir = results_dir / self.timestamp
+        results_file = timestamped_results_dir / "benchmark_results.json"
 
         if results_file.exists():
             with open(results_file) as f:
                 result = json.load(f)
             result["results_path"] = str(results_file.absolute())
-            log.info(f"Results collected in: {results_dir.absolute()}")
+            log.info(f"Results collected in: {timestamped_results_dir.absolute()}")
             return result
         else:
-            log.warning("No results file found")
+            log.warning(f"No results file found at {results_file}")
             return {}
 
     async def _cleanup_containers(self):

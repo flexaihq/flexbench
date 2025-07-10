@@ -5,7 +5,6 @@ import subprocess
 import sys
 import typing as tp
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 import mlperf_loadgen as lg
@@ -365,12 +364,6 @@ class LoadGenRunner(BaseRunner):
         except Exception as e:
             log.error(f"Error running benchmark process: {e}")
             return {"error": str(e)}
-
-    @staticmethod
-    def _setup_results_dir() -> Path:
-        results_dir = Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        results_dir.mkdir(parents=True, exist_ok=True)
-        return results_dir
 
     def _setup_test_settings(
         self,
