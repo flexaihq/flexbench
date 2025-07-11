@@ -16,24 +16,20 @@ A flexible benchmarking framework for text language models with automated Docker
 ## Installation
 
 ```bash
-# Recommended: Install with uv (faster and more reliable)
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install via clone
 git clone https://github.com/flexaihq/flexbench.git
 cd flexbench
-uv venv .venv
+uv venv
 source .venv/bin/activate
 uv pip install -e .
 
-# Alternative: Direct install from GitHub with uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv pip install git+https://github.com/flexaihq/flexbench.git
-
-# Alternative: Using regular pip (requires Python 3.12+)
-git clone https://github.com/flexaihq/flexbench.git
-cd flexbench
-python -m venv .venv
+# Install via git URL
+uv venv
 source .venv/bin/activate
-pip install -e .
+uv pip install git+https://github.com/flexaihq/flexbench.git
 ```
 
 ## Prerequisites

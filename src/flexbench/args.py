@@ -41,7 +41,12 @@ def create_module_parser():
     parser.add_argument(
         "--dataset-output-column", help="Reference text column (required for accuracy mode)"
     )
-    parser.add_argument("--accuracy", action="store_true", help="Run accuracy evaluation")
+    parser.add_argument(
+        "--mode",
+        default="performance",
+        choices=["performance", "accuracy", "all"],
+        help="Benchmark mode: performance, accuracy, or all",
+    )
     parser.add_argument("--dataset-split", default="train", help="Dataset split to use")
     parser.add_argument("--dataset-system-prompt-column", help="System prompt column name")
 

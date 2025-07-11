@@ -91,7 +91,11 @@ class MLPerfDataset(ABC):
 
     def get_references(self) -> ReferenceData:
         """Get raw reference data for accuracy evaluation."""
-        if not self.config.accuracy_mode or not self.raw_samples or not self.config.output_column:
+        if (
+            self.config.mode not in ("accuracy", "all")
+            or not self.raw_samples
+            or not self.config.output_column
+        ):
             log.debug("Cannot generate references: accuracy mode disabled or missing data")
             return ReferenceData([], [], [])
 

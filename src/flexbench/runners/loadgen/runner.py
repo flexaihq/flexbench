@@ -355,7 +355,7 @@ class LoadGenRunner(BaseRunner):
             result = LoadgenResult.from_mlperf_log(
                 log_path=self.results_dir / "mlperf_log_summary.txt",
                 config=self.config,
-                mode="AccuracyOnly" if self.config.accuracy else "PerformanceOnly",
+                mode="AccuracyOnly" if self.config.mode == "accuracy" else "PerformanceOnly",
             )
             return result
         except subprocess.CalledProcessError as e:
@@ -378,7 +378,7 @@ class LoadGenRunner(BaseRunner):
             config.scenario,
         )
         test_settings.mode = (
-            lg.TestMode.AccuracyOnly if config.accuracy else lg.TestMode.PerformanceOnly
+            lg.TestMode.AccuracyOnly if config.mode == "accuracy" else lg.TestMode.PerformanceOnly
         )
 
         if config.scenario == "Offline":

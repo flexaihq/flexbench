@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -478,7 +477,9 @@ class DockerOrchestrator:
 
                     await asyncio.sleep(5)
 
-                raise TimeoutError(f"vLLM server not ready after {self.config.wait_timeout} seconds")
+                raise TimeoutError(
+                    f"vLLM server not ready after {self.config.wait_timeout} seconds"
+                )
         finally:
             # Always cancel the log streaming task
             log_task.cancel()
@@ -492,28 +493,31 @@ class DockerOrchestrator:
         try:
             # Wait a moment for the container to start
             await asyncio.sleep(2)
-            
+
             # Start streaming logs
             process = await asyncio.create_subprocess_exec(
-                "docker", "logs", "-f", container_name,
+                "docker",
+                "logs",
+                "-f",
+                container_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                cwd=self.temp_dir
+                cwd=self.temp_dir,
             )
-            
+
             # Use specified color for container prefix
             prefix = f"\033[{color_code}m{container_name}\033[0m    | "
-            
+
             async for line in process.stdout:
                 line_str = line.decode().rstrip()
                 if line_str:
                     print(f"{prefix}{line_str}", flush=True)
-                    
+
             await process.wait()
-            
+
         except asyncio.CancelledError:
             # Clean shutdown when cancelled
-            if 'process' in locals():
+            if "process" in locals():
                 try:
                     process.terminate()
                     await process.wait()
@@ -530,7 +534,7 @@ class DockerOrchestrator:
 
         # Get command arguments for this mode
         command_args = self._get_benchmark_command_args(mode)
-        
+
         # Build docker run command
         docker_run_cmd = self._build_docker_run_command(mode, command_args)
 
@@ -540,12 +544,21 @@ class DockerOrchestrator:
     def _build_docker_run_command(self, mode: str, command_args: list[str]) -> list[str]:
         """Build docker run command for FlexBench container."""
         docker_run_cmd = [
-            "docker", "run", "--rm", "--name", f"flexbench-runner-{mode}",
-            "-v", f"{Path(self.config.docker_config.results_dir or 'results').absolute()}:/app/results",
-            "-v", f"{Path(self.config.docker_config.model_cache_dir).expanduser().absolute()}:/root/.cache/huggingface",
-            "-e", f"HF_HOME=/root/.cache/huggingface",
-            "-e", f"HF_TOKEN={self.config.benchmark_config.hf_token or os.getenv('HF_TOKEN', '')}",
-            "-e", f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}",
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            f"flexbench-runner-{mode}",
+            "-v",
+            f"{Path(self.config.docker_config.results_dir or 'results').absolute()}:/app/results",
+            "-v",
+            f"{Path(self.config.docker_config.model_cache_dir).expanduser().absolute()}:/root/.cache/huggingface",
+            "-e",
+            "HF_HOME=/root/.cache/huggingface",
+            "-e",
+            f"HF_TOKEN={self.config.benchmark_config.hf_token or os.getenv('HF_TOKEN', '')}",
+            "-e",
+            f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}",
         ]
 
         # Add network configuration
@@ -561,29 +574,31 @@ class DockerOrchestrator:
 
         # Add image and command
         docker_run_cmd.extend([self.config.docker_config.flexbench_image] + command_args)
-        
+
         return docker_run_cmd
 
-    async def _run_container_with_streaming(self, docker_run_cmd: list[str], mode: str) -> dict[str, Any]:
+    async def _run_container_with_streaming(
+        self, docker_run_cmd: list[str], mode: str
+    ) -> dict[str, Any]:
         """Run container with real-time log streaming."""
         process = subprocess.Popen(
-            docker_run_cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            text=True, 
-            bufsize=1, 
+            docker_run_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
             universal_newlines=True,
-            cwd=self.temp_dir
+            cwd=self.temp_dir,
         )
-        
+
         # Stream output with colored prefix (blue for flexbench-runner)
-        prefix = f"\033[34mflexbench-runner\033[0m  | "
-        for line in iter(process.stdout.readline, ''):
+        prefix = "\033[34mflexbench-runner\033[0m  | "
+        for line in iter(process.stdout.readline, ""):
             if line.strip():
                 print(f"{prefix}{line.rstrip()}", flush=True)
-        
+
         process.wait()
-        
+
         if process.returncode != 0:
             raise RuntimeError(f"FlexBench container failed with exit code {process.returncode}")
 
@@ -598,7 +613,7 @@ class DockerOrchestrator:
         else:
             mode_results_path = results_dir / self.timestamp / mode
         results_file = mode_results_path / "benchmark_results.json"
-        
+
         if results_file.exists():
             with open(results_file) as f:
                 result = json.load(f)
@@ -631,28 +646,39 @@ class DockerOrchestrator:
 
         # Get container status, health, and logs
         containers = ["vllm-server", "flexbench-runner"]
-        
+
         for container in containers:
             try:
                 # Container status
                 result = subprocess.run(
-                    ["docker", "ps", "-a", "--filter", f"name={container}", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"],
-                    capture_output=True, text=True, timeout=10
+                    [
+                        "docker",
+                        "ps",
+                        "-a",
+                        "--filter",
+                        f"name={container}",
+                        "--format",
+                        "table {{.Names}}\t{{.Status}}\t{{.Ports}}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 log.debug(f"{container} status: {result.stdout}")
-                
+
                 # Container health (for vllm-server)
                 if container == "vllm-server":
                     result = subprocess.run(
                         ["docker", "inspect", container, "--format", "{{.State.Health.Status}}"],
-                        capture_output=True, text=True, timeout=10
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
                     )
                     log.debug(f"{container} health: {result.stdout.strip()}")
-                
+
                 # Container logs
                 result = subprocess.run(
-                    ["docker", "logs", container], 
-                    capture_output=True, text=True, timeout=30
+                    ["docker", "logs", container], capture_output=True, text=True, timeout=30
                 )
                 if result.stdout or result.stderr:
                     log.error(f"=== {container} Container Logs ===")
@@ -660,7 +686,7 @@ class DockerOrchestrator:
                         log.error(f"stdout: {result.stdout}")
                     if result.stderr:
                         log.error(f"stderr: {result.stderr}")
-                        
+
             except Exception as e:
                 log.debug(f"Could not get {container} logs: {e}")
 
