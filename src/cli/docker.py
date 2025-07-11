@@ -203,6 +203,13 @@ class DockerOrchestrator:
             config["security_opt"] = ["seccomp:unconfined"]
             config["cap_add"] = ["SYS_NICE"]
 
+            # ARM-specific optimizations
+            if device_type == "arm":
+                config["environment"].update({
+                    "OMP_NUM_THREADS": "1",
+                    "VLLM_CPU_OMP_THREADS_BIND": "0",
+                })
+
         else:
             raise ValueError(f"Unsupported device type: {device_type}")
 
@@ -359,9 +366,13 @@ class DockerOrchestrator:
             if not dockerfile_path.exists():
                 raise RuntimeError(f"Dockerfile {dockerfile_name} not found in vLLM repository")
 
+            # Prepare build command with platform support
+            platform_str = "linux/arm64" if device_type == "arm" else "linux/amd64"
             build_command = [
                 "docker",
                 "build",
+                "--platform",
+                platform_str,
                 "-t",
                 self.config.docker_config.custom_vllm_image_name,
                 "-f",
@@ -369,19 +380,11 @@ class DockerOrchestrator:
                 str(vllm_dir),
             ]
 
-            if device_type == "arm":
-                build_command.insert(2, "--platform")
-                build_command.insert(3, "linux/arm64")
-            elif device_type == "rocm":
-                build_command.insert(2, "--target")
-                build_command.insert(3, "final")
+            # Add device-specific build arguments
+            if device_type == "rocm":
+                build_command.extend(["--target", "final"])
             elif device_type == "cpu":
-                build_command.insert(2, "--target")
-                build_command.insert(3, "vllm-openai")
-
-            if self.config.docker_config.vllm_build_args:
-                for key, value in self.config.docker_config.vllm_build_args.items():
-                    build_command.extend(["--build-arg", f"{key}={value}"])
+                build_command.extend(["--target", "vllm-openai"])
 
             log.info(
                 f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}"
@@ -389,6 +392,14 @@ class DockerOrchestrator:
             log.info("This may take a few minutes...")
 
             env = {"DOCKER_BUILDKIT": "1"}
+
+            # Add ARM-specific environment variables for build
+            if device_type == "arm":
+                env.update({
+                    "VLLM_TARGET_DEVICE": "cpu",
+                    "MAX_JOBS": "1",  # Also set as env var for consistency
+                })
+
             result = subprocess.run(
                 build_command,
                 capture_output=True,
@@ -469,15 +480,21 @@ class DockerOrchestrator:
                 start_time = time.time()
                 while time.time() - start_time < self.config.wait_timeout:
                     try:
-                        async with session.get(
-                            f"http://localhost:{self.config.docker_config.vllm_port}/health"
-                        ) as resp:
+                        health_url = f"http://localhost:{self.config.docker_config.vllm_port}/health"
+                        log.debug(f"Checking vLLM health at: {health_url}")
+                        timeout = aiohttp.ClientTimeout(total=10)
+                        async with session.get(health_url, timeout=timeout) as resp:
+                            log.debug(f"Health check response: status={resp.status}")
                             if resp.status == 200:
                                 log.info("vLLM server is ready")
                                 return
-                    except Exception:
+                            else:
+                                log.debug(f"Health check returned non-200 status: {resp.status}")
+                    except Exception as e:
+                        log.debug(f"Health check failed: {e}")
                         pass
 
+                    log.debug("Waiting 5 seconds before next health check...")
                     await asyncio.sleep(5)
 
                 raise TimeoutError(
@@ -493,6 +510,7 @@ class DockerOrchestrator:
 
     async def _stream_container_logs(self, container_name: str, color_code: str):
         """Stream container logs in real-time with colored prefix."""
+        process = None
         try:
             # Wait a moment for the container to start
             await asyncio.sleep(2)
@@ -511,25 +529,37 @@ class DockerOrchestrator:
             # Use specified color for container prefix
             prefix = f"\033[{color_code}m{container_name}\033[0m    | "
 
-            async for line in process.stdout:
-                line_str = line.decode().rstrip()
-                if line_str:
-                    print(f"{prefix}{line_str}", flush=True)
+            if process.stdout:
+                async for line in process.stdout:
+                    line_str = line.decode().rstrip()
+                    if line_str:
+                        print(f"{prefix}{line_str}", flush=True)
 
             await process.wait()
 
         except asyncio.CancelledError:
             # Clean shutdown when cancelled
-            if "process" in locals():
+            if process:
                 try:
                     process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    # Force kill if it doesn't terminate gracefully
+                    process.kill()
                     await process.wait()
-                except:
+                except Exception:
                     pass
             raise
         except Exception as e:
             # Log any other errors but don't fail the whole process
             log.debug(f"Error streaming {container_name} logs: {e}")
+            # Clean up the process if it's still running
+            if process:
+                try:
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=5.0)
+                except Exception:
+                    pass
 
     async def _run_flexbench(self, mode: str) -> dict[str, Any]:
         """Run FlexBench container for a specific mode."""
@@ -696,17 +726,21 @@ class DockerOrchestrator:
     async def _check_external_vllm_server(self):
         """Check if external vLLM server is healthy and accessible."""
         vllm_server = self.config.docker_config.vllm_server
+        if not vllm_server:
+            raise RuntimeError("vLLM server URL is not configured")
+
         health_url = f"{vllm_server.rstrip('/')}/health"
 
         log.info(f"Checking external vLLM server health: {health_url}")
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(health_url, timeout=10) as resp:
+                timeout = aiohttp.ClientTimeout(total=10)
+                async with session.get(health_url, timeout=timeout) as resp:
                     if resp.status == 200:
                         log.info("External vLLM server is healthy and ready")
                         return
                     else:
                         raise RuntimeError(f"External vLLM server returned status {resp.status}")
         except Exception as e:
-            raise RuntimeError(f"Failed to connect to external vLLM server {vllm_server}: {e}")
+            raise RuntimeError(f"Failed to connect to external vLLM server {vllm_server}: {e}") from e

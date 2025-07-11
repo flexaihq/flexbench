@@ -34,7 +34,6 @@ class DockerConfig:
     # vLLM build configuration (only used for ARM)
     vllm_repo: str = "https://github.com/vllm-project/vllm.git"
     vllm_branch: str = "main"
-    vllm_build_args: str | dict[str, str] | None = None  # Additional build arguments
 
     # vLLM server configuration
     vllm_port: int = 8000  # Host port to forward vLLM server (internal port is always 8000)
@@ -58,7 +57,6 @@ class DockerConfig:
     def __post_init__(self):
         self._resolve_device_type()
         self._validate_gpu_config()
-        self._parse_build_args()
         self._set_default_vllm_image()
 
     def _resolve_device_type(self):
@@ -77,16 +75,6 @@ class DockerConfig:
     def _validate_gpu_config(self):
         """Validate GPU configuration consistency."""
         pass
-
-    def _parse_build_args(self):
-        """Parse vLLM build arguments from string to dict if needed."""
-        if isinstance(self.vllm_build_args, str):
-            build_args = {}
-            for arg in self.vllm_build_args.split():
-                if "=" in arg:
-                    key, value = arg.split("=", 1)
-                    build_args[key] = value
-            self.vllm_build_args = build_args
 
     def _set_default_vllm_image(self):
         """Set default vLLM image based on device type if not specified."""
