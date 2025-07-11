@@ -1,12 +1,16 @@
 """Docker orchestration for FlexBench CLI."""
 
+import asyncio
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+import aiohttp
 
 from cli.config import FlexBenchDockerConfig
 from cli.utils import get_available_gpus, get_logger
@@ -32,22 +36,21 @@ class DockerOrchestrator:
             if self.config.docker_config.vllm_server:
                 log.info(f"Using external vLLM server: {self.config.docker_config.vllm_server}")
                 await self._check_external_vllm_server()
+            else:
+                # Setup for internal vLLM server
+                self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
+                log.info(f"Created temporary directory: {self.temp_dir}")
 
-            self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
-            log.info(f"Created temporary directory: {self.temp_dir}")
+                self._create_compose_file()
 
-            self._create_compose_file()
+                if self.config.pull_images:
+                    await self._pull_or_build_vllm_image()
 
-            if not self.config.docker_config.vllm_server and self.config.pull_images:
-                await self._pull_or_build_vllm_image()
+                await self._start_vllm_server()
+                await self._wait_for_vllm_ready()
 
             if self.config.build_flexbench:
                 await self._build_flexbench_image()
-
-            await self._start_containers()
-
-            if not self.config.docker_config.vllm_server:
-                await self._wait_for_vllm_ready()
 
             # Determine modes to run
             mode = self.config.benchmark_config.mode
@@ -56,24 +59,10 @@ class DockerOrchestrator:
             log.info(f"Running modes: {modes}")
 
             # Run benchmark(s)
-            original_timestamp = self.timestamp
             results = {}
-
             for current_mode in modes:
                 log.info(f"Running {current_mode} benchmark...")
-
-                # Set mode for this run
-                self.config.benchmark_config.mode = current_mode
-                self.config.benchmark_config.dataset_config.mode = current_mode
-
-                # Set timestamp for this run
-                if len(modes) > 1:
-                    self.timestamp = f"{original_timestamp}-{current_mode}"
-                else:
-                    self.timestamp = original_timestamp
-
-                # Run benchmark
-                result = await self._run_flexbench()
+                result = await self._run_flexbench(current_mode)
                 results[current_mode] = result
 
             return results if len(modes) > 1 else results[modes[0]]
@@ -88,7 +77,7 @@ class DockerOrchestrator:
                 log.info("Temporary files cleaned up")
 
     def _create_compose_file(self):
-        """Generate docker-compose.yml file."""
+        """Generate docker-compose.yml file for vLLM server only."""
         results_dir_str = self.config.docker_config.results_dir or "results"
         results_dir = Path(results_dir_str).absolute()
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -103,15 +92,13 @@ class DockerOrchestrator:
                 f"Auto-detected {device_type.upper()} GPU devices: {self.config.docker_config.gpu_devices}"
             )
 
+        # Only create vLLM service - FlexBench runs as individual containers
         compose_config = {
             "services": {
-                "flexbench": self._get_flexbench_service_config(results_dir, cache_dir),
+                "vllm-server": self._get_vllm_service_config(cache_dir),
             },
             "networks": {self.config.docker_config.network_name: {"driver": "bridge"}},
         }
-
-        if not self.config.docker_config.vllm_server:
-            compose_config["services"]["vllm-server"] = self._get_vllm_service_config(cache_dir)
 
         try:
             import yaml
@@ -229,34 +216,7 @@ class DockerOrchestrator:
 
         return config
 
-    def _get_flexbench_service_config(self, results_dir: Path, cache_dir: Path) -> dict[str, Any]:
-        """Get FlexBench service configuration for docker-compose."""
-        config = {
-            "image": self.config.docker_config.flexbench_image,
-            "container_name": "flexbench-runner",
-            "platform": "linux/amd64",
-            "volumes": [f"{results_dir}:/app/results", f"{cache_dir}:/root/.cache/huggingface"],
-            "environment": {
-                "HF_HOME": "/root/.cache/huggingface",
-                "HF_TOKEN": self.config.benchmark_config.hf_token or os.getenv("HF_TOKEN"),
-                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
-            },
-            "command": self._get_benchmark_command_args(),
-        }
-
-        # Use host network when connecting to external vLLM server for easier localhost access
-        if self.config.docker_config.vllm_server:
-            config["network_mode"] = "host"
-        else:
-            config["networks"] = [self.config.docker_config.network_name]
-            config["depends_on"] = {"vllm-server": {"condition": "service_healthy"}}
-
-        if self.config.docker_config.flexbench_memory_limit:
-            config["mem_limit"] = self.config.docker_config.flexbench_memory_limit
-
-        return config
-
-    def _get_benchmark_command_args(self) -> list[str]:
+    def _get_benchmark_command_args(self, mode: str) -> list[str]:
         """Get command arguments for FlexBench container."""
         config = self.config.benchmark_config
 
@@ -265,8 +225,12 @@ class DockerOrchestrator:
             or "http://vllm-server:8000"  # Internal container port is always 8000
         )
 
-        # Use the timestamp created during initialization
-        container_output_dir = f"/app/results/{self.timestamp}"
+        # For accuracy mode, FlexBench creates its own 'accuracy' subdirectory
+        # For performance mode, we create the 'performance' subdirectory
+        if mode == "accuracy":
+            container_output_dir = f"/app/results/{self.timestamp}"
+        else:
+            container_output_dir = f"/app/results/{self.timestamp}/{mode}"
 
         args = [
             "python",
@@ -328,7 +292,7 @@ class DockerOrchestrator:
         if config.fixed_input_length:
             args.append("--fixed-input-length")
 
-        if config.mode == "accuracy":
+        if mode == "accuracy":
             args.append("--accuracy")
 
         if config.total_sample_count is not None:
@@ -471,15 +435,15 @@ class DockerOrchestrator:
 
         log.info("FlexBench Docker image built successfully")
 
-    async def _start_containers(self):
-        """Start Docker containers using docker-compose."""
-        if self.compose_file is None or self.temp_dir is None:
+    async def _start_vllm_server(self):
+        """Start vLLM server using docker-compose."""
+        if not self.compose_file or not self.temp_dir:
             raise RuntimeError("Docker compose not initialized")
 
-        log.info("Starting Docker containers...")
+        log.info("Starting vLLM server...")
 
         result = subprocess.run(
-            ["docker", "compose", "-f", str(self.compose_file), "up", "-d"],
+            ["docker", "compose", "-f", str(self.compose_file), "up", "-d", "vllm-server"],
             capture_output=True,
             text=True,
             cwd=self.temp_dir,
@@ -487,67 +451,159 @@ class DockerOrchestrator:
 
         if result.returncode != 0:
             await self._show_container_logs()
-            raise RuntimeError(f"Failed to start containers: {result.stderr}")
+            raise RuntimeError(f"Failed to start vLLM server: {result.stderr}")
 
-        log.info("Containers started successfully")
+        log.info("vLLM server started successfully")
 
     async def _wait_for_vllm_ready(self):
-        """Wait for vLLM server to be ready."""
+        """Wait for vLLM server to be ready while streaming logs."""
         log.info("Waiting for vLLM server to be ready...")
 
-        import asyncio
+        # Start background task to stream vLLM logs
+        log_task = asyncio.create_task(self._stream_container_logs("vllm-server", "32"))
 
-        import aiohttp
+        try:
+            async with aiohttp.ClientSession() as session:
+                start_time = time.time()
+                while time.time() - start_time < self.config.wait_timeout:
+                    try:
+                        async with session.get(
+                            f"http://localhost:{self.config.docker_config.vllm_port}/health"
+                        ) as resp:
+                            if resp.status == 200:
+                                log.info("vLLM server is ready")
+                                return
+                    except Exception:
+                        pass
 
-        async with aiohttp.ClientSession() as session:
-            start_time = time.time()
-            while time.time() - start_time < self.config.wait_timeout:
+                    await asyncio.sleep(5)
+
+                raise TimeoutError(f"vLLM server not ready after {self.config.wait_timeout} seconds")
+        finally:
+            # Always cancel the log streaming task
+            log_task.cancel()
+            try:
+                await log_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _stream_container_logs(self, container_name: str, color_code: str):
+        """Stream container logs in real-time with colored prefix."""
+        try:
+            # Wait a moment for the container to start
+            await asyncio.sleep(2)
+            
+            # Start streaming logs
+            process = await asyncio.create_subprocess_exec(
+                "docker", "logs", "-f", container_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=self.temp_dir
+            )
+            
+            # Use specified color for container prefix
+            prefix = f"\033[{color_code}m{container_name}\033[0m    | "
+            
+            async for line in process.stdout:
+                line_str = line.decode().rstrip()
+                if line_str:
+                    print(f"{prefix}{line_str}", flush=True)
+                    
+            await process.wait()
+            
+        except asyncio.CancelledError:
+            # Clean shutdown when cancelled
+            if 'process' in locals():
                 try:
-                    async with session.get(
-                        f"http://localhost:{self.config.docker_config.vllm_port}/health"
-                    ) as resp:
-                        if resp.status == 200:
-                            log.info("vLLM server is ready")
-                            return
-                except Exception:
+                    process.terminate()
+                    await process.wait()
+                except:
                     pass
+            raise
+        except Exception as e:
+            # Log any other errors but don't fail the whole process
+            log.debug(f"Error streaming {container_name} logs: {e}")
 
-                await asyncio.sleep(5)
-
-        raise TimeoutError(f"vLLM server not ready after {self.config.wait_timeout} seconds")
-
-    async def _run_flexbench(self) -> dict[str, Any]:
-        """Run FlexBench container and wait for completion."""
-        if self.compose_file is None or self.temp_dir is None:
-            raise RuntimeError("Docker compose not initialized")
-
+    async def _run_flexbench(self, mode: str) -> dict[str, Any]:
+        """Run FlexBench container for a specific mode."""
         log.info("Running FlexBench benchmark...")
 
-        subprocess.run(
-            ["docker", "compose", "-f", str(self.compose_file), "logs", "-f", "flexbench"],
-            cwd=self.temp_dir,
+        # Get command arguments for this mode
+        command_args = self._get_benchmark_command_args(mode)
+        
+        # Build docker run command
+        docker_run_cmd = self._build_docker_run_command(mode, command_args)
+
+        # Run the container with real-time output streaming
+        return await self._run_container_with_streaming(docker_run_cmd, mode)
+
+    def _build_docker_run_command(self, mode: str, command_args: list[str]) -> list[str]:
+        """Build docker run command for FlexBench container."""
+        docker_run_cmd = [
+            "docker", "run", "--rm", "--name", f"flexbench-runner-{mode}",
+            "-v", f"{Path(self.config.docker_config.results_dir or 'results').absolute()}:/app/results",
+            "-v", f"{Path(self.config.docker_config.model_cache_dir).expanduser().absolute()}:/root/.cache/huggingface",
+            "-e", f"HF_HOME=/root/.cache/huggingface",
+            "-e", f"HF_TOKEN={self.config.benchmark_config.hf_token or os.getenv('HF_TOKEN', '')}",
+            "-e", f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}",
+        ]
+
+        # Add network configuration
+        if self.config.docker_config.vllm_server:
+            docker_run_cmd.extend(["--network", "host"])
+        else:
+            compose_network = f"{self.temp_dir.name}_{self.config.docker_config.network_name}"
+            docker_run_cmd.extend(["--network", compose_network])
+
+        # Add memory limit if specified
+        if self.config.docker_config.flexbench_memory_limit:
+            docker_run_cmd.extend(["--memory", self.config.docker_config.flexbench_memory_limit])
+
+        # Add image and command
+        docker_run_cmd.extend([self.config.docker_config.flexbench_image] + command_args)
+        
+        return docker_run_cmd
+
+    async def _run_container_with_streaming(self, docker_run_cmd: list[str], mode: str) -> dict[str, Any]:
+        """Run container with real-time log streaming."""
+        process = subprocess.Popen(
+            docker_run_cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            bufsize=1, 
+            universal_newlines=True,
+            cwd=self.temp_dir
         )
+        
+        # Stream output with colored prefix (blue for flexbench-runner)
+        prefix = f"\033[34mflexbench-runner\033[0m  | "
+        for line in iter(process.stdout.readline, ''):
+            if line.strip():
+                print(f"{prefix}{line.rstrip()}", flush=True)
+        
+        process.wait()
+        
+        if process.returncode != 0:
+            raise RuntimeError(f"FlexBench container failed with exit code {process.returncode}")
 
-        inspect_result = subprocess.run(
-            ["docker", "inspect", "flexbench-runner", "--format={{.State.ExitCode}}"],
-            capture_output=True,
-            text=True,
-        )
+        return self._collect_results(mode)
 
-        exit_code = int(inspect_result.stdout.strip())
-        if exit_code != 0:
-            raise RuntimeError(f"FlexBench container failed with exit code {exit_code}")
-
+    def _collect_results(self, mode: str) -> dict[str, Any]:
+        """Collect results from FlexBench run."""
         results_dir = Path(self.config.docker_config.results_dir or "results")
-        # Look for results in the timestamped subdirectory
-        timestamped_results_dir = results_dir / self.timestamp
-        results_file = timestamped_results_dir / "benchmark_results.json"
-
+        # For accuracy mode, FlexBench creates its own accuracy subdirectory
+        if mode == "accuracy":
+            mode_results_path = results_dir / self.timestamp / "accuracy"
+        else:
+            mode_results_path = results_dir / self.timestamp / mode
+        results_file = mode_results_path / "benchmark_results.json"
+        
         if results_file.exists():
             with open(results_file) as f:
                 result = json.load(f)
             result["results_path"] = str(results_file.absolute())
-            log.info(f"Results collected in: {timestamped_results_dir.absolute()}")
+            log.info(f"Results collected in: {mode_results_path.absolute()}")
             return result
         else:
             log.warning(f"No results file found at {results_file}")
@@ -555,7 +611,7 @@ class DockerOrchestrator:
 
     async def _cleanup_containers(self):
         """Clean up Docker containers."""
-        if self.compose_file is None or self.temp_dir is None:
+        if not self.compose_file or not self.temp_dir:
             return
 
         log.info("Cleaning up containers...")
@@ -568,73 +624,48 @@ class DockerOrchestrator:
 
     async def _show_container_logs(self):
         """Show logs from containers to help debug startup failures."""
-        if self.compose_file is None or self.temp_dir is None:
+        if not self.compose_file or not self.temp_dir:
             return
 
         log.info("Getting container logs for debugging...")
 
-        try:
-            result = subprocess.run(
-                [
-                    "docker",
-                    "ps",
-                    "-a",
-                    "--filter",
-                    "name=vllm-server",
-                    "--format",
-                    "table {{.Names}}\t{{.Status}}\t{{.Ports}}",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            log.debug(f"vLLM container status: {result.stdout}")
-        except Exception as e:
-            log.warning(f"Could not get container status: {e}")
-
-        try:
-            result = subprocess.run(
-                ["docker", "inspect", "vllm-server", "--format", "{{.State.Health.Status}}"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            log.debug(f"vLLM container health: {result.stdout.strip()}")
-        except Exception as e:
-            log.warning(f"Could not get container health: {e}")
-
-        try:
-            result = subprocess.run(
-                ["docker", "logs", "vllm-server"], capture_output=True, text=True, timeout=30
-            )
-            if result.stdout or result.stderr:
-                log.error("=== vLLM Server Container Logs ===")
-                if result.stdout:
-                    log.error(f"stdout: {result.stdout}")
-                if result.stderr:
-                    log.error(f"stderr: {result.stderr}")
-        except Exception as e:
-            log.warning(f"Could not get vllm-server logs: {e}")
-
-        try:
-            result = subprocess.run(
-                ["docker", "logs", "flexbench-runner"], capture_output=True, text=True, timeout=30
-            )
-            if result.stdout or result.stderr:
-                log.error("=== FlexBench Container Logs ===")
-                if result.stdout:
-                    log.error(f"stdout: {result.stdout}")
-                if result.stderr:
-                    log.error(f"stderr: {result.stderr}")
-        except Exception as e:
-            log.debug(
-                f"Could not get flexbench-runner logs (this is normal if it didn't start): {e}"
-            )
+        # Get container status, health, and logs
+        containers = ["vllm-server", "flexbench-runner"]
+        
+        for container in containers:
+            try:
+                # Container status
+                result = subprocess.run(
+                    ["docker", "ps", "-a", "--filter", f"name={container}", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"],
+                    capture_output=True, text=True, timeout=10
+                )
+                log.debug(f"{container} status: {result.stdout}")
+                
+                # Container health (for vllm-server)
+                if container == "vllm-server":
+                    result = subprocess.run(
+                        ["docker", "inspect", container, "--format", "{{.State.Health.Status}}"],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    log.debug(f"{container} health: {result.stdout.strip()}")
+                
+                # Container logs
+                result = subprocess.run(
+                    ["docker", "logs", container], 
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.stdout or result.stderr:
+                    log.error(f"=== {container} Container Logs ===")
+                    if result.stdout:
+                        log.error(f"stdout: {result.stdout}")
+                    if result.stderr:
+                        log.error(f"stderr: {result.stderr}")
+                        
+            except Exception as e:
+                log.debug(f"Could not get {container} logs: {e}")
 
     async def _check_external_vllm_server(self):
         """Check if external vLLM server is healthy and accessible."""
-        import aiohttp
-
         vllm_server = self.config.docker_config.vllm_server
         health_url = f"{vllm_server.rstrip('/')}/health"
 
