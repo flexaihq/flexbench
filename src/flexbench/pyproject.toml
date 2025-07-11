@@ -23,6 +23,7 @@ dependencies = [
     "requests>=2.32.4",
     "rouge-score>=0.1.2",
     "sentencepiece>=0.2.0",
+    "torch>=2.7.0",
     "tqdm>=4.67.1",
     "transformers>=4.50.3",
 ]
@@ -38,6 +39,16 @@ local = [
     "flashinfer-python>=0.2.2,<0.2.3",
     "vllm>=0.8.5",
 ]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = ["ipykernel>=6.29.5", "pytest>=8.3.5"]
