@@ -23,10 +23,10 @@ class DatasetConfig:
     output_column: str | None = None
     system_prompt_column: str | None = None
     split: str = "train"
-    accuracy_mode: bool = False
+    mode: str = "performance"
 
     def __post_init__(self):
-        if self.accuracy_mode and not self.output_column:
+        if self.mode in ("accuracy", "all") and not self.output_column:
             raise ValueError("output_column is required when running in accuracy mode")
 
 
@@ -57,7 +57,7 @@ class BenchmarkConfig:
     backend: str = "loadgen"
 
     # Accuracy and output configuration
-    accuracy: bool = False
+    mode: str = "performance"
     output_dir: str | None = None
 
     # MLPerf configuration
@@ -81,10 +81,10 @@ class BenchmarkConfig:
         elif self.scenario == "SingleStream":
             if self.sweep or self.target_qps is not None:
                 pass  # Just ignore these for SingleStream
-            if self.accuracy:
+            if self.mode == "accuracy":
                 raise ValueError("Accuracy mode is not supported for SingleStream scenario.")
 
-        if self.sweep and self.accuracy:
+        if self.sweep and self.mode in ("accuracy", "all"):
             raise ValueError(
                 "Sweep mode is not compatible with accuracy testing. Use --target-qps for accuracy mode."
             )
@@ -100,7 +100,7 @@ def create_dataset_config(args) -> DatasetConfig:
         output_column=getattr(args, "dataset_output_column", None),
         system_prompt_column=getattr(args, "dataset_system_prompt_column", None),
         split=getattr(args, "dataset_split", "train"),
-        accuracy_mode=getattr(args, "accuracy", False),
+        mode=getattr(args, "mode", "performance"),
     )
 
 
@@ -131,7 +131,7 @@ def create_benchmark_config(args, dataset_config: DatasetConfig | None = None) -
         vllm_server_token=getattr(args, "vllm_server_token", None),
         backend=getattr(args, "backend", "loadgen"),
         # Accuracy and output configuration
-        accuracy=getattr(args, "accuracy", False),
+        mode=getattr(args, "mode", "performance"),
         output_dir=getattr(args, "output_dir", None),
         # MLPerf configuration (use defaults from dataclass)
         model_name=getattr(args, "model_name", "llama2-70b"),

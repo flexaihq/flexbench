@@ -30,6 +30,12 @@ class Backend(str, Enum):
     vllm = "vllm"
 
 
+class Mode(str, Enum):
+    performance = "performance"
+    accuracy = "accuracy"
+    all = "all"
+
+
 # Create the Docker orchestration CLI app
 app = typer.Typer(
     help="[bold blue]FlexBench[/bold blue] - :rocket: Docker orchestration for MLPerf-style text benchmarking",
@@ -75,6 +81,11 @@ def run(
     scenario: Scenario = typer.Option(
         Scenario.offline,
         help="MLPerf scenario: Offline (all queries sent at once for max throughput), Server (Poisson distribution mimicking real-world load), or SingleStream (one query at a time for sequential latency)",
+        rich_help_panel="Core Configuration",
+    ),
+    mode: Mode = typer.Option(
+        Mode.performance,
+        help="Benchmark mode: performance (benchmark only), accuracy (accuracy evaluation only), or all (run performance then accuracy)",
         rich_help_panel="Core Configuration",
     ),
     # === PERFORMANCE TUNING ===
@@ -136,7 +147,7 @@ def run(
     ),
     # === DATASET CONFIGURATION ===
     dataset_output_column: str | None = typer.Option(
-        None,
+        "response",
         help="Reference text column (required for accuracy mode)",
         rich_help_panel="Dataset Configuration",
     ),
@@ -146,7 +157,7 @@ def run(
         rich_help_panel="Dataset Configuration",
     ),
     dataset_system_prompt_column: str | None = typer.Option(
-        None,
+        "system_prompt",
         help="System prompt column name (optional - adds system context to prompts)",
         rich_help_panel="Dataset Configuration",
     ),
@@ -242,11 +253,6 @@ def run(
     backend: Backend = typer.Option(
         Backend.loadgen,
         help="Benchmark backend: loadgen (stable) or vllm (experimental)",
-        rich_help_panel="Advanced Configuration",
-    ),
-    accuracy: bool = typer.Option(
-        False,
-        help="Run accuracy evaluation",
         rich_help_panel="Advanced Configuration",
     ),
     config_path: str = typer.Option(
@@ -360,7 +366,7 @@ def run(
         dataset_split=dataset_split,
         dataset_system_prompt_column=dataset_system_prompt_column,
         # Accuracy and output configuration
-        accuracy=accuracy,
+        mode=mode.value,
         output_dir=output_dir,
         # MLPerf configuration
         model_name=model_name,

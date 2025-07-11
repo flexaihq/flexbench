@@ -23,7 +23,8 @@ class DockerOrchestrator:
         self.temp_dir: Path | None = None
         # Generate timestamp for this run to use consistently
         from datetime import datetime
-        self.timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+
+        self.timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     async def run_benchmark(self) -> dict[str, Any]:
         """Run complete benchmark with Docker orchestration."""
@@ -48,7 +49,34 @@ class DockerOrchestrator:
             if not self.config.docker_config.vllm_server:
                 await self._wait_for_vllm_ready()
 
-            return await self._run_flexbench()
+            # Determine modes to run
+            mode = self.config.benchmark_config.mode
+            modes = ["performance", "accuracy"] if mode == "all" else [mode]
+
+            log.info(f"Running modes: {modes}")
+
+            # Run benchmark(s)
+            original_timestamp = self.timestamp
+            results = {}
+
+            for current_mode in modes:
+                log.info(f"Running {current_mode} benchmark...")
+
+                # Set mode for this run
+                self.config.benchmark_config.mode = current_mode
+                self.config.benchmark_config.dataset_config.mode = current_mode
+
+                # Set timestamp for this run
+                if len(modes) > 1:
+                    self.timestamp = f"{original_timestamp}-{current_mode}"
+                else:
+                    self.timestamp = original_timestamp
+
+                # Run benchmark
+                result = await self._run_flexbench()
+                results[current_mode] = result
+
+            return results if len(modes) > 1 else results[modes[0]]
 
         finally:
             if self.config.cleanup:
@@ -300,7 +328,7 @@ class DockerOrchestrator:
         if config.fixed_input_length:
             args.append("--fixed-input-length")
 
-        if config.accuracy:
+        if config.mode == "accuracy":
             args.append("--accuracy")
 
         if config.total_sample_count is not None:
