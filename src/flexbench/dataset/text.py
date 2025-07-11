@@ -80,7 +80,9 @@ class TextDataset(MLPerfDataset):
             from transformers import AutoTokenizer
 
             self.tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+            self.tokenizer.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id or 0
             log.info(f"Created tokenizer for input processing (max {max_input_tokens} tokens)")
+            log.debug(f"Using pad token ID: {self.tokenizer.pad_token_id}")
             if fixed_input_length:
                 log.info(f"Using fixed input length of {max_input_tokens} tokens")
 
