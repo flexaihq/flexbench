@@ -64,10 +64,15 @@ class DockerConfig:
     def _resolve_device_type(self):
         """Resolve device type if set to 'auto'."""
         if self.device_type == "auto":
-            from cli.utils import detect_device_type
+            # Skip device detection if using an existing vLLM server
+            if self.vllm_server:
+                log.info("Using existing vLLM server - skipping device detection")
+                self.device_type = "external"  # Use a placeholder device type
+            else:
+                from cli.utils import detect_device_type
 
-            self.device_type = detect_device_type()
-            log.info(f"Auto-detected device type: {self.device_type}")
+                self.device_type = detect_device_type()
+                log.info(f"Auto-detected device type: {self.device_type}")
 
     def _validate_gpu_config(self):
         """Validate GPU configuration consistency."""
@@ -86,7 +91,10 @@ class DockerConfig:
     def _set_default_vllm_image(self):
         """Set default vLLM image based on device type if not specified."""
         if not self.vllm_image:
-            if self.device_type == "arm":
+            # Skip image selection if using an external vLLM server
+            if self.device_type == "external":
+                self.vllm_image = None  # No image needed for external server
+            elif self.device_type == "arm":
                 # ARM builds from source, use custom image name
                 self.vllm_image = self.custom_vllm_image_name
             else:

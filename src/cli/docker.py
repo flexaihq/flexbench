@@ -85,7 +85,10 @@ class DockerOrchestrator:
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         device_type = self.config.docker_config.device_type
-        if device_type in ("cuda", "rocm") and not self.config.docker_config.gpu_devices:
+        # Skip GPU detection if using external vLLM server
+        if (device_type in ("cuda", "rocm") and 
+            not self.config.docker_config.gpu_devices and 
+            not self.config.docker_config.vllm_server):
             self.config.docker_config.gpu_devices = get_available_gpus(device_type)
             log.info(
                 f"Auto-detected {device_type.upper()} GPU devices: {self.config.docker_config.gpu_devices}"
