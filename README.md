@@ -199,7 +199,7 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
 
 ## Sweep Mode
 
-Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.  
+Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.
 It first starts by finding the maximum QPS your model can handle, then runs benchmarks at evenly spaced QPS points between 0 and the maximum QPS + 20%.
 
 **Usage:**

@@ -89,7 +89,7 @@ class SUT_Offline:
 
     def start(self):
         log.info("Starting SUT offline mode processing threads")
-        num_workers = os.cpu_count()
+        num_workers = os.cpu_count() or 0
         for _ in range(num_workers):
             worker = threading.Thread(target=self._process_offline_queries)
             worker.start()

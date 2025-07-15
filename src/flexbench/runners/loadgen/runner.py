@@ -190,7 +190,7 @@ class LoadGenRunner(BaseRunner):
             self.backend.stop()
 
     async def _run_sweep_benchmark(
-        self, initial_qps: float = 1000.0, budget: float = 1.2, num_sweep_points: int = None
+        self, initial_qps: float = 1000.0, budget: float = 1.2, num_sweep_points: int | None = None
     ) -> dict:
         """Run sweep benchmark with multiple QPS values using separate processes."""
         log.info("Starting sweep benchmark mode")

@@ -37,7 +37,7 @@ repos:
         language: python
         entry: ty check
         pass_filenames: false
-        args: [--python=.venv/]
+        args: [--python=.venv/, --ignore=unresolved-import]
         additional_dependencies: [ty]
 
   - repo: https://github.com/astral-sh/uv-pre-commit

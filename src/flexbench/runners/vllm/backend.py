@@ -20,7 +20,7 @@ class RequestOutput:
     ttft: float = 0.0
     latency: float = 0.0
     output_tokens: int = 0
-    itl: list[float] = None
+    itl: list[float] | None = None
     generated_text: str = ""
     error: str | None = None
     batch_size: int = 1
@@ -139,7 +139,7 @@ class VLLMBackend(BaseBackend):
                 itl = []
                 last_token_time = start_time
                 output_tokens = 0
-                ttft = None
+                ttft = 0.0
 
                 raw_content = ""
                 async for chunk in resp.content:

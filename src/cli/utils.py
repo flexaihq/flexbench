@@ -74,7 +74,7 @@ def _check_command(command: str) -> bool:
     try:
         result = subprocess.run([command], capture_output=True, timeout=30)
         return result.returncode == 0
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
 
@@ -87,7 +87,7 @@ def _has_amd_vendor() -> bool:
             with open(path, "r") as f:
                 if f.read().strip() == "0x1002":  # AMD vendor ID
                     return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -100,6 +100,7 @@ def _get_gpu_count(command: str, arg: str) -> list[str]:
             lines = [line.strip() for line in result.stdout.decode().split("\n") if line.strip()]
             count = len([line for line in lines if "GPU" in line])
             return [str(i) for i in range(count)] if count > 0 else ["0"]
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        log.warning(f"Command '{command}' failed or timed out")
         pass
     return ["0"]

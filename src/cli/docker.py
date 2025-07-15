@@ -334,7 +334,7 @@ class DockerOrchestrator:
         device_type = self.config.docker_config.device_type
         log.info(f"Building vLLM from source for {device_type} device...")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir:  # ty: ignore[no-matching-overload]
             # Clone vLLM repository
             vllm_dir = Path(temp_dir) / "vllm"
             log.info(f"Cloning vLLM repository from {self.config.docker_config.vllm_repo}")
@@ -520,8 +520,8 @@ class DockerOrchestrator:
                 "logs",
                 "-f",
                 container_name,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
+                stdout=asyncio.subprocess.PIPE,  # ty: ignore[unresolved-attribute]
+                stderr=asyncio.subprocess.STDOUT,  # ty: ignore[unresolved-attribute]
                 cwd=self.temp_dir,
             )
 
@@ -628,7 +628,7 @@ class DockerOrchestrator:
 
         # Stream output with colored prefix (blue for flexbench-runner)
         prefix = "\033[34mflexbench-runner\033[0m  | "
-        for line in iter(process.stdout.readline, ""):
+        for line in iter(process.stdout.readline, ""):  # ty: ignore[possibly-unbound-attribute]
             if line.strip():
                 print(f"{prefix}{line.rstrip()}", flush=True)
 
