@@ -5,13 +5,13 @@ import subprocess
 import sys
 import typing as tp
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 import mlperf_loadgen as lg
 
 from flexbench.accuracy_check import run_accuracy_check
-from flexbench.runners.base import BaseRunner, BenchmarkConfig
+from flexbench.config import BenchmarkConfig
+from flexbench.runners.base import BaseRunner
 from flexbench.runners.loadgen.backend import LoadGenBackend
 from flexbench.utils import get_logger
 
@@ -150,9 +150,7 @@ class LoadgenResult:
 
         metrics = {k: extract_float(v) for k, v in patterns.items()}
         valid = "Result is : VALID" in content
-        completed = (
-            config.total_sample_count if "Early stopping satisfied" in content else 0
-        )
+        completed = config.total_sample_count if "Early stopping satisfied" in content else 0
 
         return cls(
             scenario=config.scenario,
@@ -175,7 +173,7 @@ class LoadGenRunner(BaseRunner):
     async def run(self) -> dict:
         """Run benchmark and return results."""
         try:
-            if self.config.sweep_mode:
+            if self.config.sweep:
                 result = await self._run_sweep_benchmark()
                 return result
             else:
@@ -192,7 +190,7 @@ class LoadGenRunner(BaseRunner):
             self.backend.stop()
 
     async def _run_sweep_benchmark(
-        self, initial_qps: float = 1000.0, budget: float = 1.2, num_points: int = None
+        self, initial_qps: float = 1000.0, budget: float = 1.2, num_sweep_points: int = None
     ) -> dict:
         """Run sweep benchmark with multiple QPS values using separate processes."""
         log.info("Starting sweep benchmark mode")
@@ -206,9 +204,7 @@ class LoadGenRunner(BaseRunner):
         # Extract the max effective QPS achieved from the result
         max_throughput = max_throughput_result.get("samples_per_second", 0)
         if max_throughput <= 0:
-            log.warning(
-                "Failed to determine maximum throughput, defaulting to initial value"
-            )
+            log.warning("Failed to determine maximum throughput, defaulting to initial value")
             max_throughput = initial_qps / 2
 
         log.info(f"Maximum throughput detected: {max_throughput:.2f} QPS")
@@ -216,10 +212,10 @@ class LoadGenRunner(BaseRunner):
         # Create a range of QPS values to sweep through
         qps_values = []
         max_target_qps = max_throughput * budget
-        log.info(f"Running sweep with {num_points} data points")
-        num_points = num_points or self.config.num_sweep_points
-        for i in range(1, num_points + 1):
-            qps = (i * max_target_qps) / num_points
+        log.info(f"Running sweep with {num_sweep_points} data points")
+        num_sweep_points = num_sweep_points or self.config.num_sweep_points
+        for i in range(1, num_sweep_points + 1):
+            qps = (i * max_target_qps) / num_sweep_points
             qps_values.append(round(qps, 2))
 
         log.info(f"Sweeping through QPS values: {[f'{qps:.2f}' for qps in qps_values]}")
@@ -250,8 +246,6 @@ class LoadGenRunner(BaseRunner):
                 sys.executable,
                 "-m",
                 "flexbench",
-                "--task",
-                self.config.task,
                 "--model-path",
                 self.config.model_path,
                 "--api-server",
@@ -279,43 +273,30 @@ class LoadGenRunner(BaseRunner):
                     ]
                 )
 
-            if self.config.dataset_config.image_column:
-                cmd.extend(
-                    ["--dataset-image-column", self.config.dataset_config.image_column]
-                )
-
             if self.config.dataset_config.split:
                 cmd.extend(["--dataset-split", self.config.dataset_config.split])
 
             if self.config.tokenizer_path_override:
-                cmd.extend(
-                    ["--tokenizer-path-override", self.config.tokenizer_path_override]
-                )
+                cmd.extend(["--tokenizer-path-override", self.config.tokenizer_path_override])
 
             if self.config.api_token:
                 cmd.extend(["--api-token", self.config.api_token])
 
             if self.config.total_sample_count:
-                cmd.extend(
-                    ["--total-sample-count", str(self.config.total_sample_count)]
-                )
+                cmd.extend(["--total-sample-count", str(self.config.total_sample_count)])
 
             if self.config.batch_size:
                 cmd.extend(["--batch-size", str(self.config.batch_size)])
 
             if self.config.max_generated_tokens:
-                cmd.extend(
-                    ["--max-generated-tokens", str(self.config.max_generated_tokens)]
-                )
+                cmd.extend(["--max-generated-tokens", str(self.config.max_generated_tokens)])
 
             # Always use DEBUG log level for child processes during sweep mode
             env = os.environ.copy()
             env["LOG_LEVEL"] = "DEBUG"
 
             # Print a separator to visually distinguish different runs
-            separator = (
-                f"\n{'-'*80}\n{' '*30}BENCHMARK RUN: QPS={target_qps}\n{'-'*80}\n"
-            )
+            separator = f"\n{'-' * 80}\n{' ' * 30}BENCHMARK RUN: QPS={target_qps}\n{'-' * 80}\n"
             print(separator)
 
             # Run process without capturing output so it appears in real-time
@@ -374,7 +355,7 @@ class LoadGenRunner(BaseRunner):
             result = LoadgenResult.from_mlperf_log(
                 log_path=self.results_dir / "mlperf_log_summary.txt",
                 config=self.config,
-                mode="AccuracyOnly" if self.config.accuracy else "PerformanceOnly",
+                mode="AccuracyOnly" if self.config.mode == "accuracy" else "PerformanceOnly",
             )
             return result
         except subprocess.CalledProcessError as e:
@@ -383,12 +364,6 @@ class LoadGenRunner(BaseRunner):
         except Exception as e:
             log.error(f"Error running benchmark process: {e}")
             return {"error": str(e)}
-
-    @staticmethod
-    def _setup_results_dir() -> Path:
-        results_dir = Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        results_dir.mkdir(parents=True, exist_ok=True)
-        return results_dir
 
     def _setup_test_settings(
         self,
@@ -403,7 +378,7 @@ class LoadGenRunner(BaseRunner):
             config.scenario,
         )
         test_settings.mode = (
-            lg.TestMode.AccuracyOnly if config.accuracy else lg.TestMode.PerformanceOnly
+            lg.TestMode.AccuracyOnly if config.mode == "accuracy" else lg.TestMode.PerformanceOnly
         )
 
         if config.scenario == "Offline":
@@ -413,8 +388,7 @@ class LoadGenRunner(BaseRunner):
         elif config.scenario == "SingleStream":
             if config.target_qps is not None:
                 log.warning(
-                    "SingleStream scenario does not support target_qps. "
-                    "Using default settings."
+                    "SingleStream scenario does not support target_qps. Using default settings."
                 )
 
         return test_settings

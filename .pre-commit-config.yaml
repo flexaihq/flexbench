@@ -1,0 +1,52 @@
+default_install_hook_types:
+  - pre-commit
+  - post-merge
+
+repos:
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-yaml
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.24.1
+    hooks:
+      - id: validate-pyproject
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint-fix
+        args: [--disable=MD013, --disable=MD033, --disable=MD041, --disable=MD025]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.2
+    hooks:
+      - id: ruff-check
+        args: [--extend-select=I, --fix]
+      - id: ruff-format
+        args: [--line-length=100]
+
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty-check
+        language: python
+        entry: ty check
+        pass_filenames: false
+        args: [--python=.venv/]
+        additional_dependencies: [ty]
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.19
+    hooks:
+      - id: uv-sync
+      - id: uv-lock
+      - id: uv-export
+        args: [--no-hashes, --no-dev, --output-file=requirements.txt]
+      - id: uv-export
+        args: [--no-hashes, --only-dev, --output-file=requirements-dev.txt]

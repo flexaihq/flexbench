@@ -3,7 +3,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from flexbench.runners.base import BaseRunner, BenchmarkConfig
+from flexbench.config import BenchmarkConfig
+from flexbench.runners.base import BaseRunner
 from flexbench.runners.vllm.backend import RequestOutput, VLLMBackend
 from flexbench.utils import get_logger
 

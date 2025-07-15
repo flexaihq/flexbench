@@ -10,7 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from flexbench.dataset.base import DatasetConfig
+from flexbench.config import DatasetConfig
 from flexbench.dataset.text import TextDataset
 from flexbench.utils import get_logger
 
@@ -39,9 +39,7 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     """Compute ROUGE scores and token statistics."""
     metric = evaluate.load("rouge")
 
-    log.debug(
-        f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references"
-    )
+    log.debug(f"Computing ROUGE scores for {len(preds)} predictions and {len(refs)} references")
     if not preds or not refs:
         log.warning(f"Empty predictions ({len(preds)}) or references ({len(refs)})")
         return {}, 0
@@ -68,18 +66,10 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     return scores, sum(len(p) for p in preds)
 
 
-def get_accuracy_paths(output_path: str | Path) -> tuple[Path, Path]:
-    """Create and return accuracy-related paths."""
-    output_path = Path(output_path) / "accuracy"
-    output_path.mkdir(parents=True, exist_ok=True)
-    return output_path / "accuracy.txt", output_path / "accuracy_details.json"
-
-
 def run_accuracy_check(
     model_path: str,
     dataset_config: DatasetConfig,
     mlperf_accuracy_file: str | Path,
-    output_path: str | Path | None = None,
     export_txt: bool = False,
     export_json: bool = False,
     dtype: str = "int32",
@@ -90,8 +80,11 @@ def run_accuracy_check(
     if isinstance(mlperf_accuracy_file, str):
         mlperf_accuracy_file = Path(mlperf_accuracy_file)
 
-    output_path = output_path or mlperf_accuracy_file.parent.parent / "accuracy"
-    accuracy_txt, accuracy_json = get_accuracy_paths(output_path)
+    results_dir = mlperf_accuracy_file.parent
+
+    accuracy_txt_path = results_dir / "accuracy.txt"
+    accuracy_json_path = results_dir / "accuracy_details.json"
+    accuracy_results_path = results_dir / "accuracy_results.json"
 
     log.info(
         f"Loading references from {dataset_config.path} ({dataset_config.split}) using columns: "
@@ -99,7 +92,6 @@ def run_accuracy_check(
     )
 
     dataset = TextDataset(dataset_config=dataset_config, model_path=model_path)
-
     reference_data = dataset.get_references()
     log.info(f"Loaded {len(reference_data.references)} references")
     if not reference_data.references:
@@ -117,21 +109,23 @@ def run_accuracy_check(
         add_prefix_space=None if dataset.model_type == "deepseek" else False,
     )
 
-    samples = []
     gen_tok_len = 0
-
     tokens_list = []
     valid_indices = []
-    for pred in tqdm(
-        json.load(open(mlperf_accuracy_file)),
-        desc="Decoding predictions (hex -> token_id)",
-    ):
+    try:
+        with open(mlperf_accuracy_file) as f:
+            preds_json = json.load(f)
+    except FileNotFoundError:
+        log.error(f"MLPerf accuracy file not found: {mlperf_accuracy_file}")
+        return {"error": f"MLPerf accuracy file not found: {mlperf_accuracy_file}"}
+
+    samples = []
+    for pred in tqdm(preds_json, desc="Decoding predictions (hex -> token_id)"):
         idx = pred["qsl_idx"]
         if idx >= len(reference_data.references) or any(
             s["reference"] == reference_data.references[idx] for s in samples
         ):
             continue
-
         tokens = [
             t
             for t in np.frombuffer(bytes.fromhex(pred["data"]), dtype)
@@ -174,7 +168,6 @@ def run_accuracy_check(
         }
 
     scores, total_len = compute_rouge_scores(predictions, targets)
-
     metrics = {
         **{k: round(np.mean(v) * 100, 4) for k, v in scores.items()},
         "gen_len": total_len,
@@ -183,28 +176,27 @@ def run_accuracy_check(
         "tokens_per_sample": round(gen_tok_len / len(samples), 1),
     }
 
-    if export_txt or export_json:
-        if not output_path:
-            output_path = mlperf_accuracy_file.parent / "accuracy"
-        accuracy_txt, accuracy_json = get_accuracy_paths(output_path)
+    if export_txt:
+        with open(accuracy_txt_path, "w") as f:
+            f.write("\nResults\n\n" + str(metrics))
+            log.info(f"Results exported to {accuracy_txt_path}")
 
-        if export_txt:
-            with open(accuracy_txt, "w") as f:
-                f.write("\nResults\n\n" + str(metrics))
-                log.info(f"Results exported to {accuracy_txt}")
+    if export_json:
+        pd.DataFrame(
+            [
+                {
+                    **sample,
+                    "prediction": pred,
+                    **{k: round(v[i] * 100, 4) for k, v in scores.items()},
+                }
+                for i, (sample, pred) in enumerate(zip(samples, predictions))
+            ]
+        ).to_json(accuracy_json_path, indent=2, orient="records")
+        log.info(f"Detailed results exported to {accuracy_json_path}")
 
-        if export_json:
-            pd.DataFrame(
-                [
-                    {
-                        **sample,
-                        "prediction": pred,
-                        **{k: round(v[i] * 100, 4) for k, v in scores.items()},
-                    }
-                    for i, (sample, pred) in enumerate(zip(samples, predictions))
-                ]
-            ).to_json(accuracy_json, indent=2, orient="records")
-            log.info(f"Detailed results exported to {accuracy_json}")
+    with open(accuracy_results_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+        log.info(f"Accuracy results exported to {accuracy_results_path}")
 
     return metrics
 
@@ -213,24 +205,17 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run accuracy evaluation")
-    parser.add_argument(
-        "--mlperf-accuracy-file", type=str, help="Path to the MLPerf accuracy file"
-    )
+    parser.add_argument("--mlperf-accuracy-file", type=str, help="Path to the MLPerf accuracy file")
     parser.add_argument("--model-path", type=str, help="Path to the model")
-    parser.add_argument("--output-path", type=str, help="Path to the output directory")
     parser.add_argument(
         "--json-export", action="store_true", help="Export detailed results to JSON"
     )
-    parser.add_argument(
-        "--dtype", type=str, default="int32", help="Data type for token IDs"
-    )
+    parser.add_argument("--dtype", type=str, default="int32", help="Data type for token IDs")
 
     parser.add_argument("--dataset-path", required=True, help="Path to the dataset")
     parser.add_argument("--dataset-split", default="train", help="Dataset split to use")
     parser.add_argument("--input-column", required=True, help="Input column name")
-    parser.add_argument(
-        "--output-column", required=True, help="Output/reference column name"
-    )
+    parser.add_argument("--output-column", required=True, help="Output/reference column name")
     parser.add_argument("--system-prompt-column", help="System prompt column name")
     args = parser.parse_args()
 
@@ -246,7 +231,6 @@ if __name__ == "__main__":
         model_path=args.model_path,
         dataset_config=dataset_config,
         mlperf_accuracy_file=args.mlperf_accuracy_file,
-        output_path=args.output_path,
         export_txt=True,
         export_json=args.json_export,
         dtype=args.dtype,

@@ -11,25 +11,21 @@ WORKDIR /app
 
 # Set uv environment variables for production
 ENV UV_COMPILE_BYTECODE=1 \
-    UV_FROZEN=1 \
     UV_LINK_MODE=copy \
     UV_NO_INSTALLER_METADATA=1 \
     VIRTUAL_ENV=/app/.venv \
     PYTHONUNBUFFERED=1
 
 # Copy the flexbench module for installation
-COPY src/ ./src/
+COPY . .
 
-# Create virtual environment and install the flexbench module
+# Create virtual environment and install the flexbench module with full dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv && \
-    uv pip install -e ./src/flexbench/
+    uv sync --no-dev
 
 # Add venv to PATH
 ENV PATH="/app/.venv/bin:$PATH"
-
-# Set FlexBench module environment variables
-ENV LOG_LEVEL=DEBUG
 
 # Health check for FlexBench module readiness
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

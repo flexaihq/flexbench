@@ -1,39 +1,33 @@
 # FlexBench
 
-A flexible benchmarking framework for language and vision models with automated Docker orchestration and MLPerf-compliant evaluation.
+A flexible benchmarking framework for text language models with automated Docker orchestration and MLPerf-compliant evaluation.
 
 ## Features
 
-- **Automated Docker orchestration** - Zero-setup benchmarking with container management
-- **Multiple device support** - NVIDIA GPUs, CPU-only systems, and AMD ROCm GPUs
+- **Zero-setup benchmarking** - Automatic Docker container orchestration
+- **Universal hardware support** - Auto-detects CUDA, ROCm, ARM, and CPU devices
 - **MLPerf-compliant scenarios** - Server, Offline, and SingleStream inference modes
-- **Universal model support** - Compatible with any HuggingFace model and dataset
-- **Performance & accuracy evaluation** - Comprehensive metrics and validation
-- **Detailed analytics** - TTFT, throughput, latency percentiles, and more
+- **Performance & accuracy evaluation** - Comprehensive metrics with built-in datasets
 - **QPS sweep mode** - Automatic performance curve discovery
-- **GPU resource management** - Automatic device allocation and memory limits
+- **Existing server integration** - Connect to your running vLLM server
 
 ## Installation
 
 ```bash
-# Recommended: Install with uv (faster and more reliable)
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install via clone
 git clone https://github.com/flexaihq/flexbench.git
 cd flexbench
-uv venv .venv
+uv venv
 source .venv/bin/activate
 uv pip install -e .
 
-# Alternative: Direct install from GitHub with uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv pip install git+https://github.com/flexaihq/flexbench.git
-
-# Alternative: Using regular pip (requires Python 3.12+)
-git clone https://github.com/flexaihq/flexbench.git
-cd flexbench
-python -m venv .venv
+# Install via git URL
+uv venv
 source .venv/bin/activate
-pip install -e .
+uv pip install git+https://github.com/flexaihq/flexbench.git
 ```
 
 ## Prerequisites
@@ -43,91 +37,82 @@ pip install -e .
 
 ## Quick Start
 
-FlexBench automatically handles all container orchestration. Run the CLI with your desired configuration:
+FlexBench provides a single command with smart defaults for immediate benchmarking:
 
 ```bash
-# Simple performance benchmark
-flexbench --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 10 \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question \
-          --total-sample-count 100
+# View all available options
+flexbench --help
 
-# Sweep mode to find performance limits
-flexbench --task text \
-          --model-path meta-llama/Llama-2-7b-chat-hf \
-          --scenario Server \
-          --sweep \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question
+# Basic benchmark with default model (HuggingFaceTB/SmolLM2-135M-Instruct) and dataset (ctuning/MLPerf-OpenOrca)
+flexbench  # lightweight model for quick testing
 
-# Accuracy evaluation
-flexbench --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 5 \
-          --accuracy \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question \
-          --dataset-output-column response
+# Gated models (requires HuggingFace token)
+export HF_TOKEN=your_hf_token_here
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct  # supports --hf-token argument as well
+
+# Larger model with multi-GPU support
+flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --gpu-devices "0,1" --tensor-parallel-size 2  # or use CUDA_VISIBLE_DEVICES environment variable
+
+# Force CPU mode
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cpu
+
+# Specify target QPS (queries per second)
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --target-qps 5
+
+# QPS sweep to find performance limits
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep
+
+# Accuracy evaluation mode (default is performance)
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --mode accuracy
+
+# Full benchmark with both performance and accuracy in sequence
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --mode all
+
+# Use existing vLLM server
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --vllm-server http://localhost:8000  # assumes vLLM server is running
 ```
 
-FlexBench automatically manages the complete benchmark lifecycle, including pulling Docker images, starting containers with proper networking and GPU allocation, loading models, running benchmarks, collecting results, and cleaning up containers. All detailed metrics are saved to the results directory.
+FlexBench automatically handles Docker container orchestration, model loading, benchmarking, and result collection with zero manual setup.
 
 ## Architecture
 
-FlexBench provides two deployment modes:
-
-### CLI Mode (Recommended)
-
-Automated Docker orchestration with zero manual setup:
+FlexBench uses Docker Compose to orchestrate two containers that communicate over a dedicated network:
 
 ```mermaid
-flowchart LR
-    subgraph Docker Host
-        subgraph Network[flexbench-network]
-            A[FlexBench CLI] -->|Orchestrates| B[vLLM Container]
-            A -->|Orchestrates| C[FlexBench Container]
-            C <-->|API Requests| B
-        end
-        B -->|Loads Model| D[HuggingFace Cache]
-        C -->|Loads Dataset| E[HuggingFace Data]
-        C -->|Saves Results| F[Results Volume]
+flowchart TD
+    A[FlexBench CLI] -->|Orchestrates| B[Docker Compose Network]
+
+    subgraph B[flexbench-network]
+        C[vLLM Server Container]
+        D[FlexBench Runner Container]
+        D <-->|API Calls| C
     end
+
+    subgraph Host Machine
+        E[HuggingFace Cache]
+        F[Results Directory]
+        G[GPU Devices]
+    end
+
+    C -->|Loads Models| E
+    D -->|Saves Results| F
+    C -->|Uses| G
+
+    H[Existing vLLM Server] -.->|Optional| D
+    H -.->|Bypasses container orchestration| B
 ```
 
-**Benefits:**
-- **Zero setup** - Automatic container management
-- **Isolated environments** - Reproducible benchmarks
-- **GPU resource management** - Automatic device allocation
-- **Dependency isolation** - No conflicts with host environment
-- **Production ready** - Easy deployment and scaling
+**Container Orchestration:**
 
-### Module Mode (Advanced)
+- **vLLM Server Container**: Loads and serves the model via OpenAI-compatible API
+- **FlexBench Runner Container**: Generates load, collects metrics, and saves results
+- **Automatic networking**: Containers communicate over a dedicated Docker network
+- **GPU allocation**: Automatic device detection and resource management
 
-Direct Python API for development and custom integrations:
+**External Server Option:**
 
-```mermaid
-flowchart LR
-    subgraph Terminal 1
-    B[vLLM Server] -->|Model Inference| C[HuggingFace Model]
-    end
-    subgraph Terminal 2
-    A[FlexBench Module] <-->|API Requests| B
-    A -->|Loads Dataset| D[HuggingFace Data]
-    A -->|Records Metrics| E[Results]
-    end
-```
-
-**Benefits:**
-- **Full control** - Custom vLLM server configurations
-- **Easy debugging** - Direct access to all APIs
-- **Development friendly** - Faster iteration cycles
-- **Integration ready** - Embed in existing systems
-
-> **For module usage:** See [Module Documentation](src/flexbench/README.md) for detailed setup and advanced usage patterns.
+- Use `--vllm-server` to connect to an existing vLLM server
+- Bypasses vLLM container creation for maximum flexibility
 
 ## Inference Scenarios
 
@@ -135,171 +120,108 @@ FlexBench supports multiple inference scenarios based on MLPerf standards:
 
 | Scenario       | Description                                                                 | Load Generation                                                                       | Use Case                        |
 |----------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------------|
-| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img src="./assets/server.png" width="200"/>             | Online serving, latency testing  |
-| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img src="./assets/offline.png" width="200"/>           | Throughput benchmarking          |
-| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
+| **Server**     | Queries arrive following a Poisson distribution, mimicking real-world load. | <img alt="Server load generation" src="./assets/server.png" width="200"/>             | Online serving, latency testing  |
+| **Offline**    | All queries are sent at once, maximizing throughput.                        | <img alt="Offline load generation" src="./assets/offline.png" width="200"/>           | Throughput benchmarking          |
+| **SingleStream** | Queries are processed one at a time, measuring sequential latency (90th percentile). | <img alt="Single stream load generation" src="./assets/single_stream.png" width="200"/>      | Real-time, interactive, or mobile inference (e.g., autocomplete, AR) |
 
 For more details on the MLPerf Inference Benchmark and the design of modes and metrics, refer to the [MLPerf Inference Benchmark paper](https://arxiv.org/pdf/1911.02549).
 
-## Device Type Support
+## Device Support
 
-FlexBench supports multiple hardware device types with automatic vLLM image management:
+FlexBench automatically detects your hardware with `--device-type auto` (default):
 
-```bash
-# CPU-only systems (default) - builds vLLM from source (~10-20 min build time)
-flexbench --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 5 \
-          --device-type cpu \
-          --vllm-memory-limit 32g \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question
+**Detection Priority:** CUDA → ROCm → ARM → CPU
 
-# NVIDIA GPUs - uses published vLLM image
-flexbench --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 10 \
-          --device-type nvidia \
-          --gpu-devices 0,1 \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question
+| Device Type | Default vLLM Image | Build Method | Hardware |
+|-------------|-------------------|--------------|----------|
+| **auto** | *Auto-detected* | *Varies by detected device* | Automatic hardware detection |
+| **cuda** | `vllm/vllm-openai:latest` | Pull from [registry](https://hub.docker.com/r/vllm/vllm-openai/tags) | NVIDIA GPUs |
+| **rocm** | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
+| **arm** | `vllm-arm-local:latest` | **Built from [source](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.arm)** | ARM processors |
+| **cpu** | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1` | Pull from [registry](https://gallery.ecr.aws/q9t5s3a7/vllm-cpu-release-repo) | CPU-only systems |
 
-# AMD ROCm GPUs - builds vLLM from source (~15-30 min build time)
-flexbench --task text \
-          --model-path microsoft/DialoGPT-medium \
-          --scenario Server \
-          --target-qps 8 \
-          --device-type rocm \
-          --vllm-memory-limit 32g \
-          --gpu-devices 0,1 \
-          --vllm-build-args "PYTORCH_ROCM_ARCH=gfx1100" \
-          --dataset-path ctuning/MLPerf-OpenOrca \
-          --dataset-input-column question
-```
+**Note:** ARM devices require building vLLM from source since no pre-built ARM images are available. FlexBench automatically clones the vLLM repository and builds the image locally.
 
-**Device Types:**
-- **`cpu`** (default): Builds from source using [`Dockerfile.cpu`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.cpu) for CPU-only inference
-- **`nvidia`**: Uses published [`vllm/vllm-openai:latest`](https://hub.docker.com/r/vllm/vllm-openai/tags) image
-- **`rocm`**: Builds from source using [`Dockerfile.rocm`](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.rocm) for AMD GPUs
-
-## GPU Configuration
-
-FlexBench provides flexible GPU management options:
+**Force specific device:**
 
 ```bash
-# Use specific GPUs
-flexbench --gpu-devices 0,1,2 \
-          --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 10
+# Force CPU even with GPUs available
+flexbench --device-type cpu
 
-# Use first N GPUs
-flexbench --gpu-count 4 \
-          --task text \
-          --model-path meta-llama/Llama-2-7b-chat-hf \
-          --scenario Server \
-          --sweep
+# Force CUDA with a specific GPU
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cuda --gpu-devices "1"
+# equivalent to setting CUDA_VISIBLE_DEVICES=1 env variable
 
-# Custom memory limits
-flexbench --vllm-memory-limit 16g \
-          --task text \
-          --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
-          --scenario Server \
-          --target-qps 10
+# Run multiple GPUs with tensor parallelism
+flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2
 ```
 
-## Key Parameters
+## Benchmark Modes
 
-### Core Benchmark Parameters
+FlexBench supports multiple evaluation modes via `--mode`:
 
-| Parameter | Description | Available Options |
-|-----------|-------------|-------------------|
-| `--task` | Task type | `text`, `vision` (in development) |
-| `--scenario` | MLPerf scenario | `Server`, `Offline`, `SingleStream` |
-| `--backend` | Benchmark implementation | `loadgen` (MLPerf-compliant), `vllm` (direct - in development) |
-| `--accuracy` | Evaluation mode | Flag to enable accuracy mode (default: performance). Needs `--dataset-output-column` to be set. Not compatible with `--sweep`. |
-| `--dataset-output-column` | Reference text column (for accuracy mode) | String |
-| `--target-qps` | Target query rate to achieve | Float |
-| `--sweep` | Sweep mode | Flag to enable QPS sweep mode (incompatible with `--target-qps` and `--accuracy`). Automatically tests multiple QPS levels to discover performance limits and saturation points. |
-| `--num-points` | Number of QPS points in sweep | Integer (default: 10) |
-| `--batch-size` | Batch size, for Offline mode only | Integer |
-| `--max-input-tokens` | Maximum number of tokens for input | Integer (longer inputs will be truncated) |
-| `--fixed-input-length` | Fixed input length flag | Flag to pad inputs to exactly `--max-input-tokens` length |
+| Mode | Description | Usage |
+|------|-------------|-------|
+| **performance** | Benchmark throughput and latency (default) | `--mode performance` |
+| **accuracy** | Evaluate model outputs against reference data | `--mode accuracy` |
+| **all** | Run performance benchmark, then accuracy evaluation | `--mode all` |
 
-### CLI-Specific Parameters (Docker Mode Only)
+**Examples:**
 
-| Parameter | Description | Available Options |
-|-----------|-------------|-------------------|
-| `--gpu-devices` | Specific GPU devices to use | Comma-separated list (e.g., `0,1,2`) |
-| `--gpu-count` | Number of GPUs to use | Integer (uses first N GPUs) |
-| `--vllm-image` | vLLM Docker image | String (default: `vllm/vllm-openai:latest`) |
-| `--flexbench-image` | FlexBench Docker image | String (default: `flexbench:latest`) |
-| `--model-cache-dir` | Host directory for model cache | Path (default: `~/.cache/huggingface`) |
-| `--vllm-memory-limit` | Memory limit for vLLM container | String (e.g., `16g`) |
-| `--no-cleanup` | Don't remove containers after run | Flag (useful for debugging) |
-| `--no-pull` | Don't pull latest images | Flag |
-| `--dry-run` | Show configuration without running | Flag |
+```bash
+# Performance only (default)
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct
 
-For more details on each parameter, use `flexbench --help`.
+# Accuracy evaluation
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --mode accuracy
 
-### Sweep Mode
+# Both modes sequentially
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --mode all
+```
 
-Sweep mode automates the process of finding your model's performance curve by:
+## Default Dataset
 
-1. First determining the maximum throughput your model can handle
-2. Then testing a range of QPS values (from low to high) to map the complete performance profile
-3. Capturing metrics like latency and throughput at each level to identify optimal operating points
+FlexBench uses the **cTuning/MLPerf-OpenOrca** dataset by default - the official MLPerf dataset for text inference benchmarking. Pre-configured column mappings:
 
-This is useful for capacity planning and understanding how your model performs under various load conditions. Results include comprehensive metrics at each tested QPS level.
+- **Input column**: `question`
+- **Output column**: `response` (used for accuracy evaluation)
+- **System prompt**: `system_prompt`
 
-### Offline Mode Batching Behavior
+**Override defaults:**
 
-In Offline mode, the `--batch-size` parameter controls query processing:
+```bash
+# Use custom dataset
+flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
+  --dataset-path your-org/your-dataset \
+  --dataset-input-column your_input_column \
+  --dataset-output-column your_output_column
+```
 
-- **Default (no value specified)**: All samples processed as a single batch for maximum throughput
-- **Custom value**: All queries are still received at once, but processed in smaller chunks:
-  - Queries divided into batches of specified size
-  - Multiple worker threads process these batches in parallel
-  - Each batch becomes a separate API call to the inference server
+## Sweep Mode
 
-This maintains MLPerf methodology (submitting all queries at the start) while allowing flexible processing.
+Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.  
+It first starts by finding the maximum QPS your model can handle, then runs benchmarks at evenly spaced QPS points between 0 and the maximum QPS + 20%.
 
-## Dataset Configuration
+**Usage:**
 
-For dataset configuration options:
+```bash
+# Basic sweep with 10 QPS points (default)
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep
 
-- `--dataset-input-column`: Input text column (required)
-- `--dataset-output-column`: Reference text column (for accuracy mode)
-- `--dataset-system-prompt-column`: System prompt column (optional)
-- `--dataset-image-column`: Image column (for vision tasks, in development)
+# Custom sweep with 5 QPS points
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep --num-sweep-points 5
+```
 
-## Model Support
+The results will all be saved in a single file.
 
-FlexBench works with any HuggingFace model, with specialized chat templates for:
-
-- Llama2 models (`meta-llama/Llama-2-*`)
-- Llama3 models (`meta-llama/Llama-3-*`)
-- DeepSeek models (`deepseek-ai/DeepSeek-*`)
-
-### Dataset Support
-
-#### Text Tasks
-- Configurable column mapping for input text, output text, and system prompts
-- Examples: `ctuning/MLPerf-OpenOrca`, `Open-Orca/OpenOrca`
-
-#### Vision Tasks
-- Support for `philschmid/amazon-product-descriptions-vlm` (prototype, in development)
+Note: Sweep mode is incompatible with `--target-qps` (automatically determines QPS range) and `--mode accuracy` (performance analysis only).
 
 ## Using MLCommons CMX automation language
 
-We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/run-mlperf-inference-benchmark) 
+We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tree/master/cmx4mlops/repo/flex.task/run-mlperf-inference-benchmark)
 to help users prepare, validate, and submit official MLPerf inference results using FlexBench.
 These automations are based on our [MLPerf inference v5.0 submission](https://github.com/mlcommons/inference_results_v5.0/tree/main/open/FlexAI/measurements/cmx-flexbench-cuda-1xH100-vllm-0.7.3-pytorch-2.5.1-huggingface-16d94432c8704c14/DeepSeek-R1-Distill-Llama-8B/Server),
 featuring DeepSeek-R1-Distill-Llama-8B and vLLM.
-
 
 ## License and Copyright
 
@@ -307,13 +229,13 @@ This project is licensed under the [Apache License 2.0](LICENSE.md).
 
 © 2025 FlexAI
 
-Portions of the code were adapted from the following MLCommons repositories, 
+Portions of the code were adapted from the following MLCommons repositories,
 which are also licensed under the Apache 2.0 license:
 
-* [mlcommons@inference](https://github.com/mlcommons/inference)
-* [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
-* [mlcommons@ck](https://github.com/mlcommons/ck)
-* [mlcommons@vllm-project](https://github.com/vllm-project/vllm)
+- [mlcommons@inference](https://github.com/mlcommons/inference)
+- [mlcommons@inference_results_v5.0](https://github.com/mlcommons/inference_results_v5.0)
+- [mlcommons@ck](https://github.com/mlcommons/ck)
+- [mlcommons@vllm-project](https://github.com/vllm-project/vllm)
 
 ## Authors and maintaners
 

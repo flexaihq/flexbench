@@ -1,14 +1,17 @@
 # FlexBench Module Documentation
 
-This document covers the direct Python module usage of FlexBench. For most users, we recommend using the [FlexBench CLI](../README.md) which provides automatic Docker orchestration.
+This document covers the direct Python module usage of FlexBench for text model benchmarking. For most users, we recommend using the [FlexBench CLI](../../README.md) which provides automatic Docker orchestration.
 
 ## When to Use the Module
 
 Use the Python module directly when you need:
+
 - **Development and debugging**: Direct access to all APIs and configurations
 - **Custom vLLM setups**: Your own vLLM server with specific configurations
 - **Integration into existing systems**: Embedding FlexBench in larger applications
 - **Fine-grained control**: Custom benchmark workflows and data processing
+
+The module provides the same core functionality as the CLI but requires manual vLLM server management.
 
 ## Prerequisites
 
@@ -16,16 +19,18 @@ Use the Python module directly when you need:
 - A running vLLM server (you must manage this separately)
 - FlexBench installed: `pip install -e .` or `pip install git+https://github.com/flexaihq/flexbench.git`
 
+> **Note**: The FlexBench CLI provides automatic Docker orchestration for text model benchmarking. While the module provides the same core functionality, the CLI offers a more streamlined experience.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Terminal 1
-    B[vLLM Server] -->|Model Inference| C[HuggingFace Model]
+    B[vLLM Server] -->|Model Inference| C[HuggingFace Text Model]
     end
     subgraph Terminal 2
     A[FlexBench Module] <-->|API Requests/Responses| B
-    A -->|Loads Dataset| D[HuggingFace Dataset]
+    A -->|Loads Dataset| D[HuggingFace Text Dataset]
     A -->|Records Metrics| E[Results]
     end
 ```
@@ -97,7 +102,7 @@ The module requires the `--api-server` argument that specifies where your vLLM s
 
 ```bash
 --api-server http://localhost:8000    # Local vLLM server
---api-server http://remote-host:8000  # Remote vLLM server  
+--api-server http://remote-host:8000  # Remote vLLM server
 --api-server https://api.example.com  # Remote API with HTTPS
 ```
 
@@ -122,7 +127,11 @@ vllm serve microsoft/DialoGPT-medium \
 python -m flexbench \
   --api-server http://localhost:8080 \
   --model-path microsoft/DialoGPT-medium \
-  # ... other args
+  --task text \
+  --scenario Server \
+  --target-qps 5 \
+  --dataset-path ctuning/MLPerf-OpenOrca \
+  --dataset-input-column question
 ```
 
 ### Environment Variables
@@ -189,7 +198,10 @@ top -p $(pgrep -f vllm)
 
 | Aspect | CLI (Recommended) | Module |
 |--------|-------------------|---------|
+| **Command Structure** | Modern commands (`flexbench`) | Direct module execution (`python -m flexbench`) |
 | **Setup** | Automatic Docker orchestration | Manual vLLM server management |
+| **Environment Variables** | Extensive support with `flexbench config` | Manual configuration |
+| **Configuration Management** | Built-in (`--show`, `--template`, `--validate`) | Manual setup required |
 | **Isolation** | Isolated containers | Shared host environment |
 | **GPU Management** | Automatic device allocation | Manual CUDA_VISIBLE_DEVICES |
 | **Dependencies** | Docker + Docker Compose | Python + vLLM |
@@ -198,21 +210,64 @@ top -p $(pgrep -f vllm)
 | **Reproducibility** | High (containerized) | Medium (depends on environment) |
 | **Use Case** | Production, CI/CD, standard benchmarks | Development, custom setups, debugging |
 
-## Migration from CLI
+## Module vs CLI Comparison
 
-If you have CLI commands, you can convert them to module usage:
+| **Aspect** | **FlexBench CLI** | **FlexBench Module** |
+|------------|------------------|---------------------|
+| **Setup Complexity** | Zero setup - automatic Docker orchestration | Manual vLLM server setup required |
+| **Model Support** | All HuggingFace text models | All HuggingFace text models |
+| **Environment** | Isolated Docker containers | Your Python environment |
+| **GPU Management** | Automatic Docker GPU allocation | Manual GPU configuration |
+| **Networking** | Automatic container networking | Manual server management |
+| **Dependencies** | Docker + Docker Compose only | Python 3.12+ + all dependencies |
+| **Use Case** | Production, CI/CD, standard benchmarks | Development, custom setups, debugging |
+
+## Usage Examples
+
+Since the module requires manual vLLM server management, here's how to use it:
 
 ```bash
-# CLI version
-flexbench --task text --model-path MODEL --scenario Server --target-qps 10 \
-          --dataset-path DATA --dataset-input-column question
+# Terminal 1: Start vLLM server manually
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct --disable-log-requests --max-model-len=2048
 
-# Module equivalent (requires running vLLM server separately)
-vllm serve MODEL --disable-log-requests --max-model-len=2048 &
-python -m flexbench --task text --model-path MODEL --api-server http://localhost:8000 \
-                   --scenario Server --target-qps 10 \
-                   --dataset-path DATA --dataset-input-column question
+# Terminal 2: Use FlexBench module in Python
+python -c "
+from flexbench.main import async_main
+import sys
+
+# Set up arguments for the module
+sys.argv = [
+    'flexbench',
+    '--model-path', 'HuggingFaceTB/SmolLM2-135M-Instruct',
+    '--dataset-path', 'ctuning/MLPerf-OpenOrca',
+    '--dataset-input-column', 'question',
+    '--scenario', 'Server',
+    '--target-qps', '10',
+    '--api-server', 'http://localhost:8000'
+]
+
+import asyncio
+asyncio.run(async_main())
+"
+            MODEL \
+            DATA \
+            question \
+            Server \
+            --target-qps 10 \
+            --api-server http://localhost:8000
+
+# Module equivalent (also requires running vLLM server separately)
+python -m flexbench \
+  --task text \
+  --model-path MODEL \
+  --api-server http://localhost:8000 \
+  --scenario Server \
+  --target-qps 10 \
+  --dataset-path DATA \
+  --dataset-input-column question
 ```
+
+The new subcommand structure provides better organization and follows modern CLI best practices.
 
 ## Getting Help
 
@@ -220,14 +275,24 @@ python -m flexbench --task text --model-path MODEL --api-server http://localhost
 # Module-specific help
 python -m flexbench --help
 
-# CLI help (for comparison)
-flexbench --help
+# New CLI help (recommended)
+flexbench --help                    # Main help and commands
+flexbench --help                # All benchmark parameters
+flexbench config --help             # Configuration management
+
+# CLI configuration tools
+flexbench config --show             # Show current environment variables
+flexbench config --validate         # Check system requirements
+flexbench config --template         # Generate .env configuration template
 ```
 
 For issues specific to module usage, please check:
+
 1. vLLM server logs and status
 2. Network connectivity to the API server
 3. Model and dataset accessibility
 4. Python environment and dependencies
 
-For general FlexBench issues, see the main [README.md](../README.md) or [open an issue](https://github.com/flexaihq/flexbench/issues).
+For CLI configuration and troubleshooting, use the built-in `flexbench config` commands.
+
+For general FlexBench issues, see the main [README.md](../../README.md) or [open an issue](https://github.com/flexaihq/flexbench/issues).

@@ -1,77 +1,15 @@
 import threading
-import typing as tp
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 import requests
 from transformers import AutoTokenizer
 
-from flexbench.dataset.base import DatasetConfig
+from flexbench.config import BenchmarkConfig
 from flexbench.dataset.text import TextDataset
-from flexbench.dataset.vision import VisionDataset
 from flexbench.utils import get_logger
 
 log = get_logger(__name__)
-
-
-@dataclass
-class BenchmarkConfig:
-    """Configuration for MLPerf benchmark runs."""
-
-    task: str
-    model_path: str
-    api_server: str
-    dataset_config: DatasetConfig
-    scenario: tp.Literal["Offline", "Server", "SingleStream"]
-    target_qps: float | None = None
-
-    sweep_mode: bool = False
-    num_sweep_points: int = 10
-    tokenizer_path_override: str | None = None
-    remote_model_path: str | None = None
-    api_token: str | None = None
-    batch_size: int | None = None
-    max_generated_tokens: int | None = None
-    max_input_tokens: int | None = None
-    fixed_input_length: bool = False
-    accuracy: bool = False
-    total_sample_count: int | None = None
-    model_name: str = "llama2-70b"
-    config_path: str = "user.conf"
-    enable_trace: bool = False
-    log_output_to_stdout: bool = True
-    output_dir: str | None = None
-
-    def __post_init__(self):
-        if self.scenario in ("Offline", "Server"):
-            if not self.sweep_mode and self.target_qps is None:
-                raise ValueError(
-                    "Either sweep_mode must be True or target_qps must be specified for Offline/Server scenarios"
-                )
-            if self.sweep_mode and self.target_qps is not None:
-                raise ValueError(
-                    f"Cannot specify both sweep_mode={self.sweep_mode} and target_qps={self.target_qps} for Offline/Server scenarios"
-                )
-            if self.scenario == "Server" and self.batch_size is not None:
-                raise ValueError("Batch size is not applicable for Server scenario")
-        elif self.scenario == "SingleStream":
-            if self.sweep_mode or self.target_qps is not None:
-                log.warning(
-                    "SingleStream scenario ignores sweep_mode and target_qps; they will be ignored."
-                )
-            if self.accuracy:
-                raise ValueError(
-                    "Accuracy mode is not supported for SingleStream scenario."
-                )
-
-        if self.sweep_mode and self.accuracy:
-            raise ValueError(
-                "Sweep mode is not compatible with accuracy testing. Use --target-qps for accuracy mode."
-            )
-        if self.remote_model_path is None:
-            self.remote_model_path = self.model_path
 
 
 class BaseRunner(ABC):
@@ -80,11 +18,7 @@ class BaseRunner(ABC):
     def __init__(self, config: BenchmarkConfig):
         self.config = config
 
-        self.results_dir = (
-            Path(config.output_dir)
-            if config.output_dir
-            else Path("results") / datetime.now().strftime("%Y%m%d-%H%M%S")
-        )
+        self.results_dir = Path(config.output_dir) if config.output_dir else Path("results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
@@ -94,35 +28,24 @@ class BaseRunner(ABC):
 
 
 class BaseBackend(ABC):
-    """Base class for benchmark backends."""
+    """Base class for benchmark backends (text-only)."""
 
     def __init__(self, config: BenchmarkConfig):
         self.config = config
-
-        if config.task == "text":
-            self.dataset = TextDataset(
-                dataset_config=config.dataset_config,
-                model_path=config.model_path,
-                max_generated_tokens=config.max_generated_tokens,
-                max_input_tokens=config.max_input_tokens,
-                fixed_input_length=config.fixed_input_length,
-            )
-        elif config.task == "vision":
-            self.dataset = VisionDataset(
-                dataset_config=config.dataset_config,
-                model_path=config.model_path,
-                max_generated_tokens=config.max_generated_tokens,
-            )
-        else:
-            raise ValueError(f"Unsupported task type: {config.task}")
-
+        # Only support text datasets now
+        self.dataset = TextDataset(
+            dataset_config=config.dataset_config,
+            model_path=config.model_path,
+            max_generated_tokens=config.max_generated_tokens,
+            max_input_tokens=config.max_input_tokens,
+            fixed_input_length=config.fixed_input_length,
+        )
         self.tokenizer = AutoTokenizer.from_pretrained(
             config.tokenizer_path_override or config.model_path,
             use_fast=True,
             padding_side="right",
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-
         self._active = False
         self.total_sample_count = config.total_sample_count or len(self.dataset)
         self.sample_counter = 0
@@ -166,9 +89,7 @@ class BaseBackend(ABC):
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": (
-                        f"Bearer {self.config.api_token}"
-                        if self.config.api_token
-                        else None
+                        f"Bearer {self.config.api_token}" if self.config.api_token else None
                     ),
                 },
                 json={
