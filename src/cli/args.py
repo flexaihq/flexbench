@@ -46,7 +46,7 @@ app = typer.Typer(
   `flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 1`
 
 • **GPU configuration** with tensor parallelism:
-  `flexbench --model-path meta-llama/Llama-2-7b-chat-hf --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10 --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2`
+  `flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --target-qps 10 --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2`
 
 • **Sweep mode** to find optimal QPS:
   `flexbench --model-path microsoft/DialoGPT-medium --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --sweep --num-sweep-points 5`
