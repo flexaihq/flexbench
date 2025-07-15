@@ -1,4 +1,6 @@
-"""Data processing module for MLPerf benchmark data."""
+"""
+Data processing module for MLPerf benchmark data.
+"""
 
 import glob
 import json
@@ -6,6 +8,7 @@ import logging
 import os
 import re
 from collections import defaultdict
+from datetime import datetime
 
 import polars as pl
 from datasets import Dataset
@@ -135,6 +138,10 @@ def load_raw_data(base_path: str = "semi-raw-mlperf-data") -> pl.DataFrame:
         "system.host_processor_frequency": "system.cpu.frequency",
         "system.host_processor_caches": "system.cpu.caches",
         "system.host_processor_vcpu_count": "system.cpu.vcpu_count",
+        "benchmark_name": "benchmark.name",
+        "benchmark_version": "benchmark.version",
+        "datetime_last_commit": "datetime",
+        "debug_uid": "debug_uid",
     }
 
     for old_name, new_name in rename_map.items():
@@ -181,6 +188,39 @@ def find_similar_configurations(
         mask = mask & feature_mask
 
     return df.filter(mask)
+
+
+def convert_datetime_to_iso(value: str) -> str | None:
+    """Convert datetime string to ISO 8601 format."""
+    if not value or value in ["", "N/A", "null"]:
+        MISSING_VALUES["datetime_values"].add(str(value))
+        return None
+
+    try:
+        # Handle format like "2025/04/03_22:56:53"
+        if "/" in value and "_" in value:
+            # Replace / with - and _ with T for ISO format
+            iso_value = value.replace("/", "-").replace("_", "T")
+            # Validate by parsing
+            datetime.fromisoformat(iso_value)
+            return iso_value
+
+        # Try to parse other common formats and convert to ISO
+        # Add more format patterns as needed
+        for fmt in ["%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"]:
+            try:
+                dt = datetime.strptime(value, fmt)
+                return dt.isoformat()
+            except ValueError:
+                continue
+
+        # If no format matches, log as missing value
+        MISSING_VALUES["datetime_values"].add(str(value))
+        return None
+
+    except Exception as e:
+        MISSING_VALUES["datetime_values"].add(str(value))
+        return None
 
 
 def convert_memory_to_gb(value: str) -> float | None:
@@ -382,6 +422,17 @@ def normalize_memory_values(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def normalize_datetime_values(df: pl.DataFrame) -> pl.DataFrame:
+    """Convert datetime values to ISO 8601 format."""
+    if "datetime" in df.columns:
+        return df.with_columns(
+            pl.col("datetime")
+            .map_elements(convert_datetime_to_iso, return_dtype=str)
+            .alias("datetime")
+        )
+    return df
+
+
 def add_vendor_columns(df: pl.DataFrame) -> pl.DataFrame:
     """Add vendor columns based on model names."""
     return df.with_columns(
@@ -575,6 +626,7 @@ def process_data(base_path: str = "semi-raw-mlperf-data") -> pl.DataFrame:
         load_raw_data(base_path)
         .pipe(clean_string_values)
         .pipe(normalize_memory_values)
+        .pipe(normalize_datetime_values)
         .pipe(cast_columns)
         .pipe(add_vendor_columns)
         .pipe(normalize_interconnect_values)
