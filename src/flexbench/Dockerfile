@@ -11,6 +11,7 @@ WORKDIR /app
 
 # Set uv environment variables for production
 ENV UV_COMPILE_BYTECODE=1 \
+    UV_FROZEN=1 \
     UV_LINK_MODE=copy \
     UV_NO_INSTALLER_METADATA=1 \
     VIRTUAL_ENV=/app/.venv \
