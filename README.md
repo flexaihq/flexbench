@@ -51,7 +51,7 @@ export HF_TOKEN=your_hf_token_here
 flexbench --model-path meta-llama/Llama-3.2-1B-Instruct  # supports --hf-token argument as well
 
 # Larger model with multi-GPU support
-flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --gpu-devices "0,1" --tensor-parallel-size  # or use CUDA_VISIBLE_DEVICES environment variable
+flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --gpu-devices "0,1" --tensor-parallel-size 2  # or use CUDA_VISIBLE_DEVICES environment variable
 
 # Force CPU mode
 flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cpu
@@ -111,7 +111,7 @@ flowchart TD
 
 **External Server Option:**
 
-- Use `--vllm-server` to connect to your existing vLLM server
+- Use `--vllm-server` to connect to an existing vLLM server
 - Bypasses vLLM container creation for maximum flexibility
 
 ## Inference Scenarios
@@ -148,8 +148,12 @@ FlexBench automatically detects your hardware with `--device-type auto` (default
 # Force CPU even with GPUs available
 flexbench --device-type cpu
 
-# Force CUDA with specific GPUs
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cuda --gpu-devices "7"
+# Force CUDA with a specific GPU
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cuda --gpu-devices "1"
+# equivalent to setting CUDA_VISIBLE_DEVICES=1 env variable
+
+# Run multiple GPUs with tensor parallelism
+flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --device-type cuda --gpu-devices "0,1" --tensor-parallel-size 2
 ```
 
 ## Benchmark Modes
@@ -179,8 +183,9 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --mode all
 
 FlexBench uses the **cTuning/MLPerf-OpenOrca** dataset by default - the official MLPerf dataset for text inference benchmarking. Pre-configured column mappings:
 
-- **Input column**: `question` (model prompts)
-- **Output column**: `response` (reference answers for accuracy evaluation)
+- **Input column**: `question`
+- **Output column**: `response` (used for accuracy evaluation)
+- **System prompt**: `system_prompt`
 
 **Override defaults:**
 
@@ -194,13 +199,8 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
 
 ## Sweep Mode
 
-Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels:
-
-**How it works:**
-
-1. **Discovery phase**: Finds the maximum QPS your model can handle
-2. **Sweep phase**: Tests a range of QPS values from low to maximum
-3. **Analysis**: Captures latency, throughput, and saturation points at each level
+Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.  
+It first starts by finding the maximum QPS your model can handle, then runs benchmarks at evenly spaced QPS points between 0 and the maximum QPS + 20%.
 
 **Usage:**
 
@@ -212,78 +212,9 @@ flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep
 flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep --num-sweep-points 5
 ```
 
-**Benefits:**
-
-- **Capacity planning**: Understand performance limits
-- **Optimization**: Find optimal operating points
-- **Profiling**: Complete performance curve analysis
+The results will all be saved in a single file.
 
 Note: Sweep mode is incompatible with `--target-qps` (automatically determines QPS range) and `--mode accuracy` (performance analysis only).
-
-## Key Configuration Options
-
-### Basic Options
-
-```bash
-# Model and target QPS
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --target-qps 5
-
-# MLPerf scenario (default: Offline)
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --scenario Server
-
-# Sample count and batch size
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --total-sample-count 200 --batch-size 10
-```
-
-### GPU Configuration
-
-```bash
-# Specific GPU devices (uses only first GPU by default)
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --gpu-devices "0,1,2"
-
-# Multi-GPU with tensor parallelism (REQUIRED for utilizing multiple GPUs)
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --gpu-devices "0,1,2" --tensor-parallel-size 3
-
-# Tensor parallelism with auto-detected GPUs
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --tensor-parallel-size 2
-
-# Memory limits
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --vllm-memory-limit 16g
-```
-
-**Important:** When using multiple GPUs, you must specify `--tensor-parallel-size` to match the number of GPUs you want to use. Without this parameter, only the first GPU will be utilized, even if multiple GPUs are specified with `--gpu-devices`.
-
-### External vLLM Server
-
-```bash
-# Connect to existing server
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct \
-  --vllm-server http://localhost:8000 \
-  --vllm-server-token your-auth-token
-```
-
-### Custom Images
-
-```bash
-# Use custom vLLM image
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct \
-  --vllm-image myregistry.example.com/custom-vllm:latest
-```
-
-### Gated Models
-
-```bash
-# For gated models (e.g., Llama, Mistral), provide HuggingFace token
-export HF_TOKEN=your_hf_token_here
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct
-
-# Or use CLI argument
-flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --hf-token your_hf_token_here
-```
-
-**Note:** Gated models require authentication with HuggingFace. The `HF_TOKEN` environment variable is automatically detected, or you can pass it directly via `--hf-token`.
-
-For complete options: `flexbench --help`
 
 ## Using MLCommons CMX automation language
 
