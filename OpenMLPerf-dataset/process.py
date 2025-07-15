@@ -65,6 +65,7 @@ FEATURES = {
         "submission.division": "categorical",
         "submission.scenario": "categorical",
         "submission.availability": "boolean",
+        "submission.debug_uid": "text",
     },
 }
 
@@ -141,7 +142,7 @@ def load_raw_data(base_path: str = "semi-raw-mlperf-data") -> pl.DataFrame:
         "benchmark_name": "benchmark.name",
         "benchmark_version": "benchmark.version",
         "datetime_last_commit": "datetime",
-        "debug_uid": "debug_uid",
+        "debug_uid": "submission.debug_uid",
     }
 
     for old_name, new_name in rename_map.items():
