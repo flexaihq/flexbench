@@ -294,7 +294,7 @@ class DockerOrchestrator:
         if config.fixed_input_length:
             args.append("--fixed-input-length")
         if mode == "accuracy":
-            args.append("--accuracy")
+            args.extend(["--mode", "accuracy"])
 
         return args
 
