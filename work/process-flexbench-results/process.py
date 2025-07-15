@@ -2,15 +2,19 @@
 """
 Benchmark Results Aggregation Script
 
-This script processes benchmark results from multiple date/time directories,
-aggregating performance and accuracy data into a single JSON file.
+This script processes benchmark results from multiple date/time directories OR loads data
+from HuggingFace datasets, aggregating performance and accuracy data into a single JSON file.
 
-Directory structure expected:
+Directory structure expected (when not using --preload):
 - results/, results.arc1/, results.arc2/, etc.
   - YYYYMMDD-HHMMSS/
     - performance/benchmark_results.json (optional)
     - accuracy/benchmark_results.json (optional)
     - accuracy/accuracy_results.json (optional)
+
+HuggingFace dataset mode (when using --preload):
+- Use --preload flag to load data directly from a HuggingFace dataset
+- Use --dataset to specify the dataset name (default: ctuning/OpenMLPerf)
 """
 
 import json
@@ -20,6 +24,7 @@ from pathlib import Path
 from datetime import datetime
 import logging
 import argparse
+from datasets import load_dataset
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -121,6 +126,12 @@ def process_timestamp_directory(timestamp_dir):
         if 'mode' not in result:
             result['mode'] = 'AccuracyOnly'
     
+    # Remove timestamp and directory keys as requested
+    if 'timestamp' in result:
+        del result['timestamp']
+    if 'directory' in result:
+        del result['directory']
+    
     return result
 
 
@@ -161,37 +172,50 @@ def find_all_results_directories(input_dir=None):
     return sorted(timestamp_dirs)
 
 
-def aggregate_results(input_dir=None):
+def aggregate_results(input_dir=None, preload_data=None):
     """
     Main function to aggregate all benchmark results.
     
     Args:
         input_dir (str): Specific input directory to scan. If None, uses 'results' directory.
+        preload_data (list): Pre-loaded list of dictionaries to combine with local results.
     
     Returns:
         list: List of aggregated results
     """
-    logger.info("Starting benchmark results aggregation")
+    aggregated_results = []
+    
+    # Add preloaded data first if available
+    if preload_data is not None:
+        logger.info(f"Adding pre-loaded data with {len(preload_data)} records")
+        aggregated_results.extend(preload_data)
+    
+    # Always process local directories unless explicitly skipped
+    logger.info("Starting benchmark results aggregation from local directories")
     
     # Find all timestamp directories
     timestamp_dirs = find_all_results_directories(input_dir)
     logger.info(f"Found {len(timestamp_dirs)} timestamp directories")
     
-    if not timestamp_dirs:
-        logger.warning("No timestamp directories found!")
-        return []
+    if timestamp_dirs:
+        # Process each directory
+        for timestamp_dir in timestamp_dirs:
+            try:
+                result = process_timestamp_directory(timestamp_dir)
+                aggregated_results.append(result)
+            except Exception as e:
+                logger.error(f"Error processing {timestamp_dir}: {e}")
+                continue
+        
+        logger.info(f"Successfully processed {len(timestamp_dirs)} local directories")
+    else:
+        logger.warning("No local timestamp directories found!")
     
-    # Process each directory
-    aggregated_results = []
-    for timestamp_dir in timestamp_dirs:
-        try:
-            result = process_timestamp_directory(timestamp_dir)
-            aggregated_results.append(result)
-        except Exception as e:
-            logger.error(f"Error processing {timestamp_dir}: {e}")
-            continue
+    total_records = len(aggregated_results)
+    preload_count = len(preload_data) if preload_data else 0
+    local_count = total_records - preload_count
     
-    logger.info(f"Successfully processed {len(aggregated_results)} directories")
+    logger.info(f"Total aggregated results: {total_records} (preloaded: {preload_count}, local: {local_count})")
     return aggregated_results
 
 
@@ -230,13 +254,15 @@ def save_results(results, output_file='results.json'):
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Aggregate benchmark results from timestamp directories',
+        description='Aggregate benchmark results from timestamp directories or HuggingFace datasets',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python convert.py                           # Use default 'results' directory
-  python convert.py --input results.arc1     # Use 'results.arc1' directory
-  python convert.py --input /path/to/data    # Use absolute path
+  python process.py                           # Use default 'results' directory
+  python process.py --input results.arc1     # Use 'results.arc1' directory
+  python process.py --input /path/to/data    # Use absolute path
+  python process.py --preload                # Load from default HuggingFace dataset + local results
+  python process.py --preload --dataset ctuning/MyDataset  # Load from specific dataset + local results
         '''
     )
     
@@ -255,12 +281,192 @@ Examples:
     )
     
     parser.add_argument(
+        '--preload',
+        action='store_true',
+        help='Load data from HuggingFace dataset instead of scanning directories'
+    )
+    
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        default='ctuning/OpenMLPerf',
+        help='HuggingFace dataset name (default: ctuning/OpenMLPerf). Only used with --preload flag.'
+    )
+    
+    parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose logging'
     )
     
     return parser.parse_args()
+
+
+def load_dataset_from_huggingface(dataset_name):
+    """
+    Load a dataset from HuggingFace Hub.
+    
+    Args:
+        dataset_name (str): Name of the dataset on HuggingFace Hub
+        
+    Returns:
+        list: List of dictionaries from the dataset
+    """
+    try:
+        logger.info(f"Loading dataset from HuggingFace: {dataset_name}")
+        dataset = load_dataset(dataset_name)
+        
+        logger.debug(f"Dataset type: {type(dataset)}")
+        logger.debug(f"Dataset structure: {dataset}")
+        
+        # Handle different dataset formats
+        if isinstance(dataset, dict):
+            # DatasetDict - multiple splits
+            logger.info(f"Dataset splits available: {list(dataset.keys())}")
+            
+            # Try common split names
+            for split_name in ['train', 'test', 'validation', 'default']:
+                if split_name in dataset:
+                    split_dataset = dataset[split_name]
+                    logger.info(f"Using '{split_name}' split with {len(split_dataset)} records")
+                    
+                    # Convert the split to list of dictionaries
+                    data_list = convert_dataset_to_list(split_dataset)
+                    if data_list:
+                        logger.info(f"Successfully loaded {len(data_list)} records from '{split_name}' split")
+                        return data_list
+            
+            # If no common split found, use the first available
+            if dataset:
+                first_split = list(dataset.keys())[0]
+                split_dataset = dataset[first_split]
+                logger.info(f"Using first available split '{first_split}' with {len(split_dataset)} records")
+                
+                data_list = convert_dataset_to_list(split_dataset)
+                if data_list:
+                    logger.info(f"Successfully loaded {len(data_list)} records from '{first_split}' split")
+                    return data_list
+        else:
+            # Single dataset
+            logger.info(f"Single dataset with {len(dataset)} records")
+            data_list = convert_dataset_to_list(dataset)
+            if data_list:
+                logger.info(f"Successfully loaded {len(data_list)} records from dataset")
+                return data_list
+        
+        logger.error("Failed to convert dataset to list of dictionaries")
+        return []
+            
+    except ImportError:
+        logger.error("datasets library not installed. Please install it with: pip install datasets")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading dataset {dataset_name}: {e}")
+        raise
+
+
+def convert_dataset_to_list(dataset):
+    """
+    Convert a HuggingFace dataset to a list of dictionaries.
+    
+    Args:
+        dataset: HuggingFace dataset object
+        
+    Returns:
+        list: List of dictionaries or empty list if conversion fails
+    """
+    try:
+        # Method 1: Try direct conversion to pandas then to records
+        if hasattr(dataset, 'to_pandas'):
+            try:
+                df = dataset.to_pandas()
+                data_list = df.to_dict('records')
+                logger.debug(f"Method 1 (to_pandas): Successfully converted {len(data_list)} records")
+                return data_list
+            except Exception as e:
+                logger.debug(f"Method 1 (to_pandas) failed: {e}")
+        
+        # Method 2: Try iterating through the dataset
+        if hasattr(dataset, '__iter__'):
+            try:
+                data_list = []
+                for i, item in enumerate(dataset):
+                    if isinstance(item, dict):
+                        data_list.append(item)
+                    else:
+                        logger.debug(f"Item {i} is not a dict: {type(item)}")
+                        break
+                    # Limit to avoid memory issues during testing
+                    if i >= 10000:  # Load first 10k records for testing
+                        logger.info(f"Limited to first {len(data_list)} records for testing")
+                        break
+                
+                if data_list:
+                    logger.debug(f"Method 2 (iteration): Successfully converted {len(data_list)} records")
+                    return data_list
+            except Exception as e:
+                logger.debug(f"Method 2 (iteration) failed: {e}")
+        
+        # Method 3: Try accessing as list directly
+        if hasattr(dataset, '__len__') and hasattr(dataset, '__getitem__'):
+            try:
+                data_list = []
+                dataset_len = len(dataset)
+                logger.debug(f"Dataset length: {dataset_len}")
+                
+                # Sample a few items to understand structure
+                sample_size = min(5, dataset_len)
+                for i in range(sample_size):
+                    item = dataset[i]
+                    logger.debug(f"Sample item {i}: {type(item)} - {item}")
+                    if isinstance(item, dict):
+                        data_list.append(item)
+                
+                # If samples worked, load all (with limit for safety)
+                if data_list:
+                    data_list = []
+                    load_limit = min(dataset_len, 10000)  # Safety limit
+                    for i in range(load_limit):
+                        item = dataset[i]
+                        if isinstance(item, dict):
+                            data_list.append(item)
+                    
+                    logger.debug(f"Method 3 (indexing): Successfully converted {len(data_list)} records")
+                    return data_list
+            except Exception as e:
+                logger.debug(f"Method 3 (indexing) failed: {e}")
+        
+        # Method 4: Check if it has features and can be converted differently
+        if hasattr(dataset, 'features'):
+            logger.debug(f"Dataset features: {dataset.features}")
+            try:
+                # Try to convert using column names
+                data_list = []
+                if hasattr(dataset, 'to_dict'):
+                    dict_data = dataset.to_dict()
+                    if isinstance(dict_data, dict):
+                        # Convert columnar format to row format
+                        keys = list(dict_data.keys())
+                        if keys:
+                            num_rows = len(dict_data[keys[0]]) if keys else 0
+                            for i in range(num_rows):
+                                row = {key: dict_data[key][i] for key in keys}
+                                data_list.append(row)
+                            
+                            logger.debug(f"Method 4 (to_dict): Successfully converted {len(data_list)} records")
+                            return data_list
+            except Exception as e:
+                logger.debug(f"Method 4 (to_dict) failed: {e}")
+        
+        logger.error(f"All conversion methods failed. Dataset type: {type(dataset)}")
+        if hasattr(dataset, '__dict__'):
+            logger.debug(f"Dataset attributes: {list(dataset.__dict__.keys())}")
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"Error in convert_dataset_to_list: {e}")
+        return []
 
 
 def main():
@@ -273,13 +479,25 @@ def main():
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
         
+        # Determine data source
+        preload_data = None
+        if args.preload:
+            logger.info(f"Preloading data from HuggingFace dataset: {args.dataset}")
+            preload_data = load_dataset_from_huggingface(args.dataset)
+            if not preload_data:
+                logger.error("Failed to load data from HuggingFace dataset")
+                return
+        
         # Log the configuration
-        input_desc = args.input if args.input else 'results (default)'
-        logger.info(f"Input directory: {input_desc}")
+        if args.preload:
+            logger.info(f"Using HuggingFace dataset: {args.dataset}")
+        else:
+            input_desc = args.input if args.input else 'results (default)'
+            logger.info(f"Input directory: {input_desc}")
         logger.info(f"Output file: {args.output}")
         
         # Aggregate all results
-        results = aggregate_results(args.input)
+        results = aggregate_results(args.input, preload_data)
         
         if not results:
             logger.warning("No results to save!")
