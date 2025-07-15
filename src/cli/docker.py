@@ -90,6 +90,7 @@ class DockerOrchestrator:
 
         if self.temp_dir and self.temp_dir.exists():
             import shutil
+
             shutil.rmtree(self.temp_dir)
             log.info("Temporary files cleaned up")
 
@@ -162,10 +163,16 @@ class DockerOrchestrator:
                 "start_period": "180s",
             },
             "command": [
-                "--model", self.config.benchmark_config.remote_model_path,
-                "--host", "0.0.0.0", "--port", "8000",
-                "--max-model-len", str(self.config.docker_config.vllm_max_model_len),
-                "--gpu-memory-utilization", str(self.config.docker_config.vllm_gpu_memory_utilization),
+                "--model",
+                self.config.benchmark_config.remote_model_path,
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--max-model-len",
+                str(self.config.docker_config.vllm_max_model_len),
+                "--gpu-memory-utilization",
+                str(self.config.docker_config.vllm_gpu_memory_utilization),
             ],
         }
 
@@ -245,24 +252,26 @@ class DockerOrchestrator:
             or "http://vllm-server:8000"  # Internal container port is always 8000
         )
 
-        # # For accuracy mode, FlexBench creates its own 'accuracy' subdirectory
-        # # For performance mode, we create the 'performance' subdirectory
-        # container_output_dir = (
-        #     f"/app/results/{self.timestamp}"
-        #     if mode == "accuracy"
-        #     else f"/app/results/{self.timestamp}/{mode}"
-        # )
         container_output_dir = f"/app/results/{self.timestamp}/{mode}"
 
         args = [
-            "python", "-m", "flexbench",
-            "--model-path", config.model_path,
-            "--api-server", vllm_server_url,
-            "--scenario", config.scenario,
-            "--dataset-path", config.dataset_config.path,
-            "--dataset-input-column", config.dataset_config.input_column,
-            "--backend", config.backend,
-            "--output-dir", container_output_dir,
+            "python",
+            "-m",
+            "flexbench",
+            "--model-path",
+            config.model_path,
+            "--api-server",
+            vllm_server_url,
+            "--scenario",
+            config.scenario,
+            "--dataset-path",
+            config.dataset_config.path,
+            "--dataset-input-column",
+            config.dataset_config.input_column,
+            "--backend",
+            config.backend,
+            "--output-dir",
+            container_output_dir,
         ]
 
         # Add optional arguments
@@ -271,7 +280,9 @@ class DockerOrchestrator:
         if config.dataset_config.output_column:
             args.extend(["--dataset-output-column", config.dataset_config.output_column])
         if config.dataset_config.system_prompt_column:
-            args.extend(["--dataset-system-prompt-column", config.dataset_config.system_prompt_column])
+            args.extend(
+                ["--dataset-system-prompt-column", config.dataset_config.system_prompt_column]
+            )
         if config.dataset_config.split != "train":
             args.extend(["--dataset-split", config.dataset_config.split])
         if config.tokenizer_path_override:
@@ -328,18 +339,31 @@ class DockerOrchestrator:
             vllm_dir = Path(temp_dir) / "vllm"
             log.info(f"Cloning vLLM repository from {self.config.docker_config.vllm_repo}")
 
-            result = subprocess.run([
-                "git", "clone", "--branch", self.config.docker_config.vllm_branch,
-                "--depth", "1", self.config.docker_config.vllm_repo, str(vllm_dir),
-            ], capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--single-branch",
+                    "--branch",
+                    self.config.docker_config.vllm_branch,
+                    "--depth",
+                    "1",
+                    self.config.docker_config.vllm_repo,
+                    str(vllm_dir),
+                ],
+                capture_output=True,
+                text=True,
+            )
 
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clone vLLM repository: {result.stderr}")
 
             # Get Dockerfile path
             dockerfile_map = {
-                "cuda": "Dockerfile", "arm": "Dockerfile.arm",
-                "rocm": "Dockerfile.rocm", "cpu": "Dockerfile.cpu",
+                "cuda": "Dockerfile",
+                "arm": "Dockerfile.arm",
+                "rocm": "Dockerfile.rocm",
+                "cpu": "Dockerfile.cpu",
             }
             dockerfile_name = dockerfile_map.get(device_type)
             if not dockerfile_name:
@@ -352,9 +376,15 @@ class DockerOrchestrator:
             # Prepare build command
             platform_str = "linux/arm64" if device_type == "arm" else "linux/amd64"
             build_command = [
-                "docker", "build", "--platform", platform_str,
-                "-t", self.config.docker_config.custom_vllm_image_name,
-                "-f", str(dockerfile_path), str(vllm_dir),
+                "docker",
+                "build",
+                "--platform",
+                platform_str,
+                "-t",
+                self.config.docker_config.custom_vllm_image_name,
+                "-f",
+                str(dockerfile_path),
+                str(vllm_dir),
             ]
 
             # Add device-specific build arguments
@@ -364,20 +394,25 @@ class DockerOrchestrator:
                 build_command.extend(["--target", "vllm-openai"])
 
             # Execute build
-            log.info(f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}")
+            log.info(
+                f"Building vLLM Docker image: {self.config.docker_config.custom_vllm_image_name}"
+            )
             log.info("This may take a few minutes...")
 
             env = {"DOCKER_BUILDKIT": "1"}
             if device_type == "arm":
                 env.update({"VLLM_TARGET_DEVICE": "cpu", "MAX_JOBS": "1"})
 
-            result = subprocess.run(build_command, capture_output=True, text=True,
-                                  env={**env, **dict(os.environ)})
+            result = subprocess.run(
+                build_command, capture_output=True, text=True, env={**env, **dict(os.environ)}
+            )
 
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to build vLLM image: {result.stderr}")
 
-            log.info(f"Successfully built vLLM image: {self.config.docker_config.custom_vllm_image_name}")
+            log.info(
+                f"Successfully built vLLM image: {self.config.docker_config.custom_vllm_image_name}"
+            )
             self.config.docker_config.vllm_image = self.config.docker_config.custom_vllm_image_name
 
     async def _build_flexbench_image(self):
@@ -445,7 +480,9 @@ class DockerOrchestrator:
                 start_time = time.time()
                 while time.time() - start_time < self.config.wait_timeout:
                     try:
-                        health_url = f"http://localhost:{self.config.docker_config.vllm_port}/health"
+                        health_url = (
+                            f"http://localhost:{self.config.docker_config.vllm_port}/health"
+                        )
                         log.debug(f"Checking vLLM health at: {health_url}")
                         timeout = aiohttp.ClientTimeout(total=10)
                         async with session.get(health_url, timeout=timeout) as resp:
@@ -455,11 +492,15 @@ class DockerOrchestrator:
                                 return
                             log.debug(f"Health check returned non-200 status: {resp.status}")
                     except Exception as e:
-                        log.debug(f"Health check failed with error: '{e}'. Retrying in 5 seconds...")
+                        log.debug(
+                            f"Health check failed with error: '{e}'. Retrying in 5 seconds..."
+                        )
 
                     await asyncio.sleep(5)
 
-                raise TimeoutError(f"vLLM server not ready after {self.config.wait_timeout} seconds")
+                raise TimeoutError(
+                    f"vLLM server not ready after {self.config.wait_timeout} seconds"
+                )
         finally:
             # Always cancel the log streaming task
             log_task.cancel()
@@ -536,12 +577,21 @@ class DockerOrchestrator:
         cache_dir = Path(self.config.docker_config.model_cache_dir).expanduser().absolute()
 
         docker_run_cmd = [
-            "docker", "run", "--rm", "--name", f"flexbench-runner-{mode}",
-            "-v", f"{results_dir}:/app/results",
-            "-v", f"{cache_dir}:/root/.cache/huggingface",
-            "-e", "HF_HOME=/root/.cache/huggingface",
-            "-e", f"HF_TOKEN={self.config.benchmark_config.hf_token or os.getenv('HF_TOKEN', '')}",
-            "-e", f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}",
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            f"flexbench-runner-{mode}",
+            "-v",
+            f"{results_dir}:/app/results",
+            "-v",
+            f"{cache_dir}:/root/.cache/huggingface",
+            "-e",
+            "HF_HOME=/root/.cache/huggingface",
+            "-e",
+            f"HF_TOKEN={self.config.benchmark_config.hf_token or os.getenv('HF_TOKEN', '')}",
+            "-e",
+            f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}",
         ]
 
         # Add network configuration
@@ -615,23 +665,42 @@ class DockerOrchestrator:
         for container_name in ["vllm-server", "flexbench-runner"]:
             try:
                 # Container status
-                result = subprocess.run([
-                    "docker", "ps", "-a", "--filter", f"name={container_name}",
-                    "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-                ], capture_output=True, text=True, timeout=10)
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "ps",
+                        "-a",
+                        "--filter",
+                        f"name={container_name}",
+                        "--format",
+                        "table {{.Names}}\t{{.Status}}\t{{.Ports}}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
                 log.debug(f"{container_name} status: {result.stdout}")
 
                 # Container health (for vllm-server)
                 if container_name == "vllm-server":
-                    result = subprocess.run([
-                        "docker", "inspect", container_name, "--format", "{{.State.Health.Status}}"
-                    ], capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "inspect",
+                            container_name,
+                            "--format",
+                            "{{.State.Health.Status}}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
                     log.debug(f"{container_name} health: {result.stdout.strip()}")
 
                 # Container logs
-                result = subprocess.run([
-                    "docker", "logs", container_name
-                ], capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    ["docker", "logs", container_name], capture_output=True, text=True, timeout=30
+                )
                 if result.stdout or result.stderr:
                     log.error(f"=== {container_name} Container Logs ===")
                     if result.stdout:

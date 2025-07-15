@@ -17,7 +17,9 @@ async def run_benchmark_async(config, dry_run: bool = False) -> int:
     """Run the benchmark with the given configuration."""
     try:
         log.info("FlexBench CLI starting...")
-        log.debug(f"Log level set to: {os.getenv('LOG_LEVEL', 'INFO')}")
+        log.info(
+            f"Log level set to: {os.getenv('LOG_LEVEL', 'INFO')}. Use LOG_LEVEL environment variable to change it."
+        )
         if log.isEnabledFor(logging.DEBUG):
             log.debug("Debug logging enabled")
 

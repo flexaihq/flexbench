@@ -43,27 +43,33 @@ FlexBench provides a single command with smart defaults for immediate benchmarki
 # View all available options
 flexbench --help
 
-# Basic benchmark with default dataset (ctuning/MLPerf-OpenOrca)
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct
-
-# Larger model with GPU configuration
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --target-qps 5
-
-# QPS sweep to find performance limits
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --sweep
-
-# Accuracy evaluation mode
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --mode accuracy
-
-# Use existing vLLM server
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --vllm-server http://localhost:8000
+# Basic benchmark with default model (HuggingFaceTB/SmolLM2-135M-Instruct) and dataset (ctuning/MLPerf-OpenOrca)
+flexbench  # lightweight model for quick testing
 
 # Gated models (requires HuggingFace token)
 export HF_TOKEN=your_hf_token_here
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct  # supports --hf-token argument as well
 
-# Or use CLI argument
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --hf-token your_hf_token_here
+# Larger model with multi-GPU support
+flexbench --model-path meta-llama/Llama-3.2-70B-Instruct --gpu-devices "0,1" --tensor-parallel-size  # or use CUDA_VISIBLE_DEVICES environment variable
+
+# Force CPU mode
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cpu
+
+# Specify target QPS (queries per second)
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --target-qps 5
+
+# QPS sweep to find performance limits
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep
+
+# Accuracy evaluation mode (default is performance)
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --mode accuracy
+
+# Full benchmark with both performance and accuracy in sequence
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --mode all
+
+# Use existing vLLM server
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --vllm-server http://localhost:8000  # assumes vLLM server is running
 ```
 
 FlexBench automatically handles Docker container orchestration, model loading, benchmarking, and result collection with zero manual setup.
@@ -75,34 +81,36 @@ FlexBench uses Docker Compose to orchestrate two containers that communicate ove
 ```mermaid
 flowchart TD
     A[FlexBench CLI] -->|Orchestrates| B[Docker Compose Network]
-    
+
     subgraph B[flexbench-network]
         C[vLLM Server Container]
         D[FlexBench Runner Container]
         D <-->|API Calls| C
     end
-    
+
     subgraph Host Machine
         E[HuggingFace Cache]
         F[Results Directory]
         G[GPU Devices]
     end
-    
+
     C -->|Loads Models| E
     D -->|Saves Results| F
     C -->|Uses| G
-    
+
     H[Existing vLLM Server] -.->|Optional| D
     H -.->|Bypasses container orchestration| B
 ```
 
 **Container Orchestration:**
+
 - **vLLM Server Container**: Loads and serves the model via OpenAI-compatible API
 - **FlexBench Runner Container**: Generates load, collects metrics, and saves results
 - **Automatic networking**: Containers communicate over a dedicated Docker network
 - **GPU allocation**: Automatic device detection and resource management
 
 **External Server Option:**
+
 - Use `--vllm-server` to connect to your existing vLLM server
 - Bypasses vLLM container creation for maximum flexibility
 
@@ -127,20 +135,21 @@ FlexBench automatically detects your hardware with `--device-type auto` (default
 | Device Type | Default vLLM Image | Build Method | Hardware |
 |-------------|-------------------|--------------|----------|
 | **auto** | *Auto-detected* | *Varies by detected device* | Automatic hardware detection |
-| **cuda** | `vllm/vllm-openai:latest` | Pull from registry | NVIDIA GPUs |
-| **rocm** | `rocm/vllm:latest` | Pull from registry | AMD GPUs |
-| **arm** | `vllm-arm-local:latest` | **Built from source** | ARM processors |
-| **cpu** | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1` | Pull from registry | CPU-only systems |
+| **cuda** | `vllm/vllm-openai:latest` | Pull from [registry](https://hub.docker.com/r/vllm/vllm-openai/tags) | NVIDIA GPUs |
+| **rocm** | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
+| **arm** | `vllm-arm-local:latest` | **Built from [source](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.arm)** | ARM processors |
+| **cpu** | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1` | Pull from [registry](https://gallery.ecr.aws/q9t5s3a7/vllm-cpu-release-repo) | CPU-only systems |
 
 **Note:** ARM devices require building vLLM from source since no pre-built ARM images are available. FlexBench automatically clones the vLLM repository and builds the image locally.
 
 **Force specific device:**
+
 ```bash
 # Force CPU even with GPUs available
-flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --device-type cpu
+flexbench --device-type cpu
 
 # Force CUDA with specific GPUs
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --device-type cuda --gpu-devices "0,1"
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --device-type cuda --gpu-devices "7"
 ```
 
 ## Benchmark Modes
@@ -154,6 +163,7 @@ FlexBench supports multiple evaluation modes via `--mode`:
 | **all** | Run performance benchmark, then accuracy evaluation | `--mode all` |
 
 **Examples:**
+
 ```bash
 # Performance only (default)
 flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct
@@ -173,6 +183,7 @@ FlexBench uses the **cTuning/MLPerf-OpenOrca** dataset by default - the official
 - **Output column**: `response` (reference answers for accuracy evaluation)
 
 **Override defaults:**
+
 ```bash
 # Use custom dataset
 flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
@@ -186,20 +197,23 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
 Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels:
 
 **How it works:**
+
 1. **Discovery phase**: Finds the maximum QPS your model can handle
 2. **Sweep phase**: Tests a range of QPS values from low to maximum
 3. **Analysis**: Captures latency, throughput, and saturation points at each level
 
 **Usage:**
+
 ```bash
 # Basic sweep with 10 QPS points (default)
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --sweep
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep
 
 # Custom sweep with 5 QPS points
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --sweep --num-sweep-points 5
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --sweep --num-sweep-points 5
 ```
 
 **Benefits:**
+
 - **Capacity planning**: Understand performance limits
 - **Optimization**: Find optimal operating points
 - **Profiling**: Complete performance curve analysis
@@ -209,9 +223,10 @@ Note: Sweep mode is incompatible with `--target-qps` (automatically determines Q
 ## Key Configuration Options
 
 ### Basic Options
+
 ```bash
 # Model and target QPS
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --target-qps 5
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --target-qps 5
 
 # MLPerf scenario (default: Offline)
 flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --scenario Server
@@ -221,45 +236,49 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct --total-sample-count 
 ```
 
 ### GPU Configuration
+
 ```bash
 # Specific GPU devices (uses only first GPU by default)
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --gpu-devices "0,1,2"
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --gpu-devices "0,1,2"
 
 # Multi-GPU with tensor parallelism (REQUIRED for utilizing multiple GPUs)
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --gpu-devices "0,1,2" --tensor-parallel-size 3
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --gpu-devices "0,1,2" --tensor-parallel-size 3
 
 # Tensor parallelism with auto-detected GPUs
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --tensor-parallel-size 2
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --tensor-parallel-size 2
 
 # Memory limits
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --vllm-memory-limit 16g
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --vllm-memory-limit 16g
 ```
 
 **Important:** When using multiple GPUs, you must specify `--tensor-parallel-size` to match the number of GPUs you want to use. Without this parameter, only the first GPU will be utilized, even if multiple GPUs are specified with `--gpu-devices`.
 
 ### External vLLM Server
+
 ```bash
 # Connect to existing server
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf \
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct \
   --vllm-server http://localhost:8000 \
   --vllm-server-token your-auth-token
 ```
 
 ### Custom Images
+
 ```bash
 # Use custom vLLM image
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf \
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct \
   --vllm-image myregistry.example.com/custom-vllm:latest
 ```
 
 ### Gated Models
+
 ```bash
 # For gated models (e.g., Llama, Mistral), provide HuggingFace token
 export HF_TOKEN=your_hf_token_here
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct
 
 # Or use CLI argument
-flexbench --model-path meta-llama/Llama-2-7b-chat-hf --hf-token your_hf_token_here
+flexbench --model-path meta-llama/Llama-3.2-1B-Instruct --hf-token your_hf_token_here
 ```
 
 **Note:** Gated models require authentication with HuggingFace. The `HF_TOKEN` environment variable is automatically detected, or you can pass it directly via `--hf-token`.
@@ -272,7 +291,6 @@ We are developing [MLCommons CMX automations](https://github.com/mlcommons/ck/tr
 to help users prepare, validate, and submit official MLPerf inference results using FlexBench.
 These automations are based on our [MLPerf inference v5.0 submission](https://github.com/mlcommons/inference_results_v5.0/tree/main/open/FlexAI/measurements/cmx-flexbench-cuda-1xH100-vllm-0.7.3-pytorch-2.5.1-huggingface-16d94432c8704c14/DeepSeek-R1-Distill-Llama-8B/Server),
 featuring DeepSeek-R1-Distill-Llama-8B and vLLM.
-
 
 ## License and Copyright
 

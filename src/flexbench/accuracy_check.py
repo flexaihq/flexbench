@@ -66,8 +66,6 @@ def compute_rouge_scores(preds: list[str], refs: list[str]) -> tuple[dict, int]:
     return scores, sum(len(p) for p in preds)
 
 
-
-
 def run_accuracy_check(
     model_path: str,
     dataset_config: DatasetConfig,
