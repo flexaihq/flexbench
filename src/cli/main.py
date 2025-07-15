@@ -34,8 +34,12 @@ async def run_benchmark_async(config, dry_run: bool = False) -> int:
         orchestrator = DockerOrchestrator(config)
         result = await orchestrator.run_benchmark()
 
-        log.info("Benchmark completed successfully")
-        log.info(f"Results: {result.get('results_path', 'Unknown')}")
+        if isinstance(result, dict) and all(isinstance(v, dict) for v in result.values()):
+            for mode, mode_result in result.items():
+                results_path = mode_result.get("results_path", "Unknown")
+                log.info(f"Results for {mode}: {results_path}")
+        else:
+            log.info(f"Results: {result.get('results_path', 'Unknown')}")
 
         return 0
 
