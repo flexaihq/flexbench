@@ -1,7 +1,0 @@
-cmind
-elasticsearch
-fastapi[standard]
-plotly
-polars
-psycopg2-binary
-streamlit

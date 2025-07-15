@@ -9,6 +9,5 @@ wheels/
 # Virtual environments
 .venv
 
-
 # FlexBench specific
 results/
