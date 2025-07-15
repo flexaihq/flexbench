@@ -32,6 +32,9 @@ class DockerOrchestrator:
     async def run_benchmark(self) -> dict[str, Any]:
         """Run complete benchmark with Docker orchestration."""
         try:
+            self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
+            log.info(f"Created temporary directory: {self.temp_dir}")
+
             await self._setup_vllm_server()
 
             if self.config.build_flexbench:
@@ -49,9 +52,6 @@ class DockerOrchestrator:
             await self._check_external_vllm_server()
         else:
             # Setup for internal vLLM server
-            self.temp_dir = Path(tempfile.mkdtemp(prefix="flexbench-"))
-            log.info(f"Created temporary directory: {self.temp_dir}")
-
             self._create_compose_file()
 
             if self.config.pull_images:
@@ -245,13 +245,14 @@ class DockerOrchestrator:
             or "http://vllm-server:8000"  # Internal container port is always 8000
         )
 
-        # For accuracy mode, FlexBench creates its own 'accuracy' subdirectory
-        # For performance mode, we create the 'performance' subdirectory
-        container_output_dir = (
-            f"/app/results/{self.timestamp}"
-            if mode == "accuracy"
-            else f"/app/results/{self.timestamp}/{mode}"
-        )
+        # # For accuracy mode, FlexBench creates its own 'accuracy' subdirectory
+        # # For performance mode, we create the 'performance' subdirectory
+        # container_output_dir = (
+        #     f"/app/results/{self.timestamp}"
+        #     if mode == "accuracy"
+        #     else f"/app/results/{self.timestamp}/{mode}"
+        # )
+        container_output_dir = f"/app/results/{self.timestamp}/{mode}"
 
         args = [
             "python", "-m", "flexbench",
@@ -454,9 +455,8 @@ class DockerOrchestrator:
                                 return
                             log.debug(f"Health check returned non-200 status: {resp.status}")
                     except Exception as e:
-                        log.debug(f"Health check failed: {e}")
+                        log.debug(f"Health check failed with error: '{e}'. Retrying in 5 seconds...")
 
-                    log.debug("Waiting 5 seconds before next health check...")
                     await asyncio.sleep(5)
 
                 raise TimeoutError(f"vLLM server not ready after {self.config.wait_timeout} seconds")
@@ -592,14 +592,7 @@ class DockerOrchestrator:
     def _collect_results(self, mode: str) -> dict[str, Any]:
         """Collect results from FlexBench run."""
         results_dir = Path(self.config.docker_config.results_dir or "results")
-
-        # For accuracy mode, FlexBench creates its own accuracy subdirectory
-        mode_results_path = (
-            results_dir / self.timestamp / "accuracy"
-            if mode == "accuracy"
-            else results_dir / self.timestamp / mode
-        )
-
+        mode_results_path = results_dir / self.timestamp / mode
         results_file = mode_results_path / "benchmark_results.json"
 
         if not results_file.exists():
