@@ -1,0 +1,30 @@
+{
+  "input": {
+    "alias": "",
+    "automation_alias": "flex.cache",
+    "automation_uid": "b9d58d0cbecd442b",
+    "benchmark": "training",
+    "git": false,
+    "submission": false,
+    "tags": [
+      "flex.task",
+      "clone-git-repo",
+      "22852439662449f2",
+      "clone",
+      "git",
+      "repo",
+      "_benchmark.training",
+      "mlperf-results",
+      "_url.https://github.com/mlcommons/training_results_v3.1",
+      "_directory./home/gfursin/mlperf-raw-results/training_results_v3.1",
+      "_branch.",
+      "_fetch.",
+      "_checkout.",
+      "_version.3.1"
+    ],
+    "uid": "b7089428cbe04ba8",
+    "url": "https://github.com/mlcommons/training_results_v3.1",
+    "version": "3.1"
+  },
+  "uid": "781ed4ad33d34e2c"
+}

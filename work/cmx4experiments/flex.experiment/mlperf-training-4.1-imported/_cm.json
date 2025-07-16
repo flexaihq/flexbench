@@ -1,0 +1,25 @@
+{
+  "alias": "mlperf-training-4.1-imported",
+  "automation_alias": "flex.experiment",
+  "automation_uid": "adb2bff868484dc6",
+  "tags": [
+    "flex.task",
+    "clone-git-repo",
+    "clone",
+    "git",
+    "repo",
+    "live",
+    "_benchmark.training",
+    "_version.4.1",
+    "_submission",
+    "mlperf-results",
+    "_url.git@github.com:mlcommons/submissions_training_v4.1",
+    "_directory./persistent_storage/mlperf-raw-results/submissions_training_v4.1",
+    "_branch.",
+    "_fetch.",
+    "_checkout.",
+    "imported",
+    "cmx"
+  ],
+  "uid": "463daabb60ec4911"
+}

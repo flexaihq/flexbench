@@ -1,0 +1,6 @@
+Copyright (c) 2025 FlexAI. All rights reserved.
+
+This project includes code and data from MLCommons (https://github.com/mlcommons)
+licensed under the same Apache License, Version 2.0.
+
+Author: Grigori Fursin

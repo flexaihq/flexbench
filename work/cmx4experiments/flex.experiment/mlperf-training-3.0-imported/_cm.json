@@ -1,0 +1,23 @@
+{
+  "alias": "mlperf-training-3.0-imported",
+  "automation_alias": "flex.experiment",
+  "automation_uid": "adb2bff868484dc6",
+  "tags": [
+    "flex.task",
+    "clone-git-repo",
+    "clone",
+    "git",
+    "repo",
+    "_benchmark.training",
+    "_version.3.0",
+    "mlperf-results",
+    "_url.https://github.com/mlcommons/training_results_v3.0",
+    "_directory./persistent_storage/mlperf-raw-results/training_results_v3.0",
+    "_branch.",
+    "_fetch.",
+    "_checkout.",
+    "imported",
+    "cmx"
+  ],
+  "uid": "d400c5003d3f4793"
+}

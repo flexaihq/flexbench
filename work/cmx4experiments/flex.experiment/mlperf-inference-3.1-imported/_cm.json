@@ -1,0 +1,23 @@
+{
+  "alias": "mlperf-inference-3.1-imported",
+  "automation_alias": "flex.experiment",
+  "automation_uid": "adb2bff868484dc6",
+  "tags": [
+    "flex.task",
+    "clone-git-repo",
+    "clone",
+    "git",
+    "repo",
+    "_benchmark.inference",
+    "_version.3.1",
+    "mlperf-results",
+    "_url.https://github.com/mlcommons/inference_results_v3.1",
+    "_directory./persistent_storage/mlperf-raw-results/inference_results_v3.1",
+    "_branch.",
+    "_fetch.",
+    "_checkout.",
+    "imported",
+    "cmx"
+  ],
+  "uid": "0b81d91ed5f648b9"
+}
