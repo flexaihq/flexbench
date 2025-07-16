@@ -1,0 +1,26 @@
+{
+  "alias": "mlperf-inference-5.0-main-imported",
+  "automation_alias": "flex.experiment",
+  "automation_uid": "adb2bff868484dc6",
+  "tags": [
+    "flex.task",
+    "clone-git-repo",
+    "22852439662449f2",
+    "clone",
+    "git",
+    "repo",
+    "main",
+    "_benchmark.inference",
+    "mlperf-results",
+    "_url.https://github.com/mlcommons/inference_results_v5.0",
+    "_directory./home/fursin/mlperf-raw-results/inference_results_v5.0_without_go",
+    "_branch.",
+    "_fetch.",
+    "_checkout.",
+    "_version.5.0",
+    "imported",
+    "cmx"
+  ],
+
+  "uid": "add832744dde47f8"
+}

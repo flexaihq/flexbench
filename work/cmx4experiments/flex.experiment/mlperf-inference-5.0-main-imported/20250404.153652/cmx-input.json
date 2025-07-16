@@ -1,0 +1,32 @@
+{
+  "input": {
+    "alias": "clone-git-repo-673dc8deee3344f4",
+    "automation_alias": "flex.cache",
+    "automation_uid": "b9d58d0cbecd442b",
+    "benchmark": "inference",
+    "git": false,
+    "main": true,
+    "submission": false,
+    "tags": [
+      "flex.task",
+      "clone-git-repo",
+      "22852439662449f2",
+      "clone",
+      "git",
+      "repo",
+      "main",
+      "_benchmark.inference",
+      "mlperf-results",
+      "_url.https://github.com/mlcommons/inference_results_v5.0",
+      "_directory./home/fursin/mlperf-raw-results/inference_results_v5.0_without_go",
+      "_branch.",
+      "_fetch.",
+      "_checkout.",
+      "_version.5.0"
+    ],
+    "uid": "673dc8deee3344f4",
+    "url": "https://github.com/mlcommons/inference_results_v5.0",
+    "version": "5.0"
+  },
+  "uid": "7e193531b46a439a"
+}

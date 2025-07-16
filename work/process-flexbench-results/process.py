@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Benchmark Results Aggregation Script
 
@@ -15,6 +14,9 @@ Directory structure expected (when not using --preload):
 HuggingFace dataset mode (when using --preload):
 - Use --preload flag to load data directly from a HuggingFace dataset
 - Use --dataset to specify the dataset name (default: ctuning/OpenMLPerf)
+
+Author: Grigori Fursin
+
 """
 
 import json

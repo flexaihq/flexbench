@@ -1,0 +1,30 @@
+{
+  "input": {
+    "alias": "",
+    "automation_alias": "flex.cache",
+    "automation_uid": "b9d58d0cbecd442b",
+    "benchmark": "inference",
+    "git": false,
+    "submission": false,
+    "tags": [
+      "flex.task",
+      "clone-git-repo",
+      "22852439662449f2",
+      "clone",
+      "git",
+      "repo",
+      "_benchmark.inference",
+      "mlperf-results",
+      "_url.https://github.com/mlcommons/inference_results_v3.1",
+      "_directory.D:\\Work2\\!!MLPerf-results\\inference_results_v3.1",
+      "_branch.",
+      "_fetch.",
+      "_checkout.",
+      "_version.3.1"
+    ],
+    "uid": "b44b6bc9e93243da",
+    "url": "https://github.com/mlcommons/inference_results_v3.1",
+    "version": "3.1"
+  },
+  "uid": "29ebd67bb8724511"
+}

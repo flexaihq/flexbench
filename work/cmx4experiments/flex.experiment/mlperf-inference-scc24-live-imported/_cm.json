@@ -1,0 +1,25 @@
+{
+  "alias": "mlperf-inference-scc24-live-imported",
+  "automation_alias": "flex.experiment",
+  "automation_uid": "adb2bff868484dc6",
+  "tags": [
+    "flex.task",
+    "clone-git-repo",
+    "clone",
+    "git",
+    "repo",
+    "live",
+    "_benchmark.inference",
+    "_version.scc24-live",
+    "_submission",
+    "mlperf-results",
+    "_url.https://github.com/mlcommons/cm4mlperf-inference",
+    "_directory./persistent_storage/mlperf-raw-results/cm4mlperf-inference",
+    "_branch.mlperf-inference-results-scc24",
+    "_fetch.",
+    "_checkout.",
+    "imported",
+    "cmx"
+  ],
+  "uid": "cdc7e134fb4c4fe6"
+}
