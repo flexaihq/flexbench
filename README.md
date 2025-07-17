@@ -241,7 +241,7 @@ which are also licensed under the Apache 2.0 license:
 
 [Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
 
-We would like to thank Dali Kilani, Venkataraju Koppada, Rahul Thangallapally, 
+We would like to thank Dali Kilani, Venkataraju Koppada, Rahul Thangallapally,
 and other colleagues for their valuable discussions and feedback.
 
 ## Contributing
