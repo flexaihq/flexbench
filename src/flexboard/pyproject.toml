@@ -1,47 +1,41 @@
 [project]
-name = "flexbench-cli"
-
+name = "flexboard"
 version = "0.2.0"
-
-description = "FlexBench CLI - Docker orchestration for FlexAI Universal Benchmarking"
-
+description = "FlexAI Universal Benchmarking Dashboard"
 readme = "README.md"
-
 requires-python = ">=3.12"
-
 authors = [
     {name = "Daniel Altunay"},
     {name = "Grigori Fursin"},
 ]
 
 dependencies = [
-    "aiohttp>=3.12.13",
-    "pyyaml>=6.0.2",
-    "typer>=0.16.0",
+    "datasets>=4.0.0",
+    "plotly>=6.2.0",
+    "polars>=1.31.0",
+    "streamlit>=1.46.1",
+    "structlog>=25.4.0",
 ]
 
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 
 classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
-[project.scripts]
-flexbench = "cli.main:main"
-
-[project.optional-dependencies]
-
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
-    "pre-commit>=4.2.0",
     "pytest>=8.3.5",
+    "watchdog>=6.0.0",
 ]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["cli*", "flexbench*", "flexboard*"]
+[tool.setuptools]
+packages = ["flexboard"]
+
+[tool.setuptools.package-dir]
+flexboard = "."
