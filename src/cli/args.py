@@ -52,8 +52,6 @@ app = typer.Typer(
   `flexbench --model-path microsoft/DialoGPT-medium --dataset-path ctuning/MLPerf-OpenOrca --dataset-input-column question --scenario Server --sweep --num-sweep-points 5`
 
 ---
-Made with :heart: for [bold green]MLPerf benchmarking[/bold green] • Learn more at [link=https://github.com/flexbench/flexbench]flexbench[/link]
-
 Built by [bold blue]Daniel Altunay[/bold blue] and [bold blue]Grigori Fursin[/bold blue] under [bold yellow]FlexAI[/bold yellow] ([italic]FCS Labs[/italic]) :building_construction:
     """,
     rich_markup_mode="rich",
@@ -157,7 +155,7 @@ def run(
         rich_help_panel="Dataset Configuration",
     ),
     dataset_system_prompt_column: str | None = typer.Option(
-        "system_prompt",
+        None,  # use `system_prompt` for MLPerf-OpenOrca
         help="System prompt column name (optional - adds system context to prompts)",
         rich_help_panel="Dataset Configuration",
     ),

@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev
 
 # Add venv to PATH
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH=${VIRTUAL_ENV}/bin:$PATH
 
 # Health check for FlexBench module readiness
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

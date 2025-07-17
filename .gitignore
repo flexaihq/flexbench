@@ -11,3 +11,6 @@ wheels/
 
 # FlexBench specific
 results/
+
+# Other
+*.ipynb
