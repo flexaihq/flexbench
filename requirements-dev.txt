@@ -29,7 +29,7 @@ identify==2.6.12
 iniconfig==2.1.0
     # via pytest
 ipykernel==6.29.5
-ipython==9.2.0
+ipython==9.4.0
     # via ipykernel
 ipython-pygments-lexers==1.1.1
     # via ipython
@@ -37,7 +37,7 @@ jedi==0.19.2
     # via ipython
 jupyter-client==8.6.3
     # via ipykernel
-jupyter-core==5.7.2
+jupyter-core==5.8.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -61,7 +61,7 @@ platformdirs==4.3.8
     # via
     #   jupyter-core
     #   virtualenv
-pluggy==1.5.0
+pluggy==1.6.0
     # via pytest
 pre-commit==4.2.0
 prompt-toolkit==3.0.51
@@ -74,18 +74,19 @@ pure-eval==0.2.3
     # via stack-data
 pycparser==2.22 ; implementation_name == 'pypy'
     # via cffi
-pygments==2.19.1
+pygments==2.19.2
     # via
     #   ipython
     #   ipython-pygments-lexers
-pytest==8.3.5
+    #   pytest
+pytest==8.4.1
 python-dateutil==2.9.0.post0
     # via jupyter-client
-pywin32==310 ; platform_python_implementation != 'PyPy' and sys_platform == 'win32'
+pywin32==311 ; platform_python_implementation != 'PyPy' and sys_platform == 'win32'
     # via jupyter-core
 pyyaml==6.0.2
     # via pre-commit
-pyzmq==26.4.0
+pyzmq==27.0.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -93,7 +94,7 @@ six==1.17.0
     # via python-dateutil
 stack-data==0.6.3
     # via ipython
-tornado==6.4.2
+tornado==6.5.1
     # via
     #   ipykernel
     #   jupyter-client

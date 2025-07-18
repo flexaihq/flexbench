@@ -1,24 +1,25 @@
 # FlexBoard
 
+FlexBoard is a web-based dashboard for visualizing and analyzing performance data from MLPerf and flexbench benchmarks. It provides an interactive interface to explore various metrics, compare systems, and gain insights into the performance characteristics of different hardware and software configurations.
+
+DISCLAIMER: This project is in early development and the integration with flexbench is not yet complete.
+
 ## Installation
 
 ```bash
-# Go to the flexboard directory
 cd flexboard
-
-# Create a virtual environment
-python -m venv .venv
-
-# Activate the virtual environment
+uv venv
 source .venv/bin/activate
-
-# Install the required packages
-pip install -r requirements.txt
-
-# Run the application
-python -m app
+uv pip install -e .
+python -m streamlit run app.py
 ```
 
+## Next steps
+
+- Proper integration with flexbench
+- Add price for all accelerators (default is 1.0 USD/hr)
+- Merge accelerators with different names (e.g. `AMD Instinct MI300X-NPS1-SPX-192GB-750W` and `AMD MI300X-NPS1-SPX-192GB-750W`)
+- Add more plots and visualizations
 
 ## License and Copyright
 

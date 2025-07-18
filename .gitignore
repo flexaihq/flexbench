@@ -1,7 +1,16 @@
-*.pyc
-.venv
-*.lock
-src/flexbench/results
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
 *.egg-info
-build
+
+# Virtual environments
+.venv
+
+# FlexBench specific
 results/
+
+# Other
+*.ipynb

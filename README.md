@@ -128,7 +128,7 @@ For more details on the MLPerf Inference Benchmark and the design of modes and m
 
 ## Device Support
 
-FlexBench automatically detects your hardware with `--device-type auto` (default):
+Whenever running without specifying a vLLM server, FlexBench automatically detects your hardware with `--device-type auto` (default):
 
 **Detection Priority:** CUDA → ROCm → ARM → CPU
 
@@ -136,7 +136,7 @@ FlexBench automatically detects your hardware with `--device-type auto` (default
 |-------------|-------------------|--------------|----------|
 | **auto** | *Auto-detected* | *Varies by detected device* | Automatic hardware detection |
 | **cuda** | `vllm/vllm-openai:latest` | Pull from [registry](https://hub.docker.com/r/vllm/vllm-openai/tags) | NVIDIA GPUs |
-| **rocm** | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
+| **rocm** (WIP) | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
 | **arm** | `vllm-arm-local:latest` | **Built from [source](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.arm)** | ARM processors |
 | **cpu** | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1` | Pull from [registry](https://gallery.ecr.aws/q9t5s3a7/vllm-cpu-release-repo) | CPU-only systems |
 
@@ -199,7 +199,7 @@ flexbench --model-path HuggingFaceTB/SmolLM2-135M-Instruct \
 
 ## Sweep Mode
 
-Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.  
+Sweep mode automatically discovers your model's performance characteristics by testing multiple QPS levels.
 It first starts by finding the maximum QPS your model can handle, then runs benchmarks at evenly spaced QPS points between 0 and the maximum QPS + 20%.
 
 **Usage:**
@@ -241,7 +241,7 @@ which are also licensed under the Apache 2.0 license:
 
 [Daniel Altunay](https://www.linkedin.com/in/daltunay) and [Grigori Fursin](https://cKnowledge.org/gfursin) (FCS Labs)
 
-We would like to thank Dali Kilani, Venkataraju Koppada, Rahul Thangallapally, 
+We would like to thank Dali Kilani, Venkataraju Koppada, Rahul Thangallapally,
 and other colleagues for their valuable discussions and feedback.
 
 ## Contributing

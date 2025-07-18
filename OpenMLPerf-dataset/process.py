@@ -82,9 +82,7 @@ def get_feature_type(feature_name: str) -> str:
 
 def find_result_files(base_path: str = "semi-raw-mlperf-data") -> list[str]:
     """Find all cmx-result-summary.json files."""
-    return glob.glob(
-        os.path.join(base_path, "**/cmx-result-summary.json"), recursive=True
-    )
+    return glob.glob(os.path.join(base_path, "**/cmx-result-summary.json"), recursive=True)
 
 
 def load_raw_data(base_path: str = "semi-raw-mlperf-data") -> pl.DataFrame:
@@ -180,9 +178,7 @@ def find_similar_configurations(
         if get_feature_type(feature) == "continuous":
             lower_bound = value * (1 - continuous_tolerance)
             upper_bound = value * (1 + continuous_tolerance)
-            feature_mask = (pl.col(feature) >= lower_bound) & (
-                pl.col(feature) <= upper_bound
-            )
+            feature_mask = (pl.col(feature) >= lower_bound) & (pl.col(feature) <= upper_bound)
         else:
             feature_mask = pl.col(feature) == value
 
@@ -219,7 +215,7 @@ def convert_datetime_to_iso(value: str) -> str | None:
         MISSING_VALUES["datetime_values"].add(str(value))
         return None
 
-    except Exception as e:
+    except Exception:
         MISSING_VALUES["datetime_values"].add(str(value))
         return None
 
@@ -231,9 +227,7 @@ def convert_memory_to_gb(value: str) -> float | None:
 
     if "+" in value:
         left, right = value.split("+", 1)
-        return (convert_memory_to_gb(left) or 0.0) + (
-            convert_memory_to_gb(right) or 0.0
-        ) or None
+        return (convert_memory_to_gb(left) or 0.0) + (convert_memory_to_gb(right) or 0.0) or None
 
     value = value.replace(" ", "").upper()
     numeric = ""
@@ -384,9 +378,7 @@ def normalize_interconnect_type(value: str) -> str | None:
     return value
 
 
-def clean_string_values(
-    df: pl.DataFrame, string_columns: list[str] | None = None
-) -> pl.DataFrame:
+def clean_string_values(df: pl.DataFrame, string_columns: list[str] | None = None) -> pl.DataFrame:
     """Clean string values in specified columns."""
     if string_columns is None:
         string_columns = [col for col in df.columns if df[col].dtype == pl.String]
@@ -484,9 +476,7 @@ def extract_framework_columns(df: pl.DataFrame) -> pl.DataFrame:
     )
 
     rename_dict = {
-        col: f"software.framework.{col}"
-        for col in df_pivoted.columns
-        if col != "row_id"
+        col: f"software.framework.{col}" for col in df_pivoted.columns if col != "row_id"
     }
     df_pivoted = df_pivoted.rename(rename_dict)
 
@@ -570,10 +560,9 @@ def add_model_architecture(df: pl.DataFrame) -> pl.DataFrame:
 def add_total_accelerator_count(df: pl.DataFrame) -> pl.DataFrame:
     """Compute total number of accelerators."""
     return df.with_columns(
-        (
-            pl.col("system.number_of_nodes")
-            * pl.col("system.accelerator.count_per_node")
-        ).alias("system.accelerator.total_count")
+        (pl.col("system.number_of_nodes") * pl.col("system.accelerator.count_per_node")).alias(
+            "system.accelerator.total_count"
+        )
     )
 
 
@@ -610,9 +599,7 @@ def upload_to_huggingface_hub(
 
     try:
         dataset.push_to_hub(dataset_name, private=private)
-        logger.info(
-            f"Successfully uploaded dataset to HuggingFace Hub as '{dataset_name}'"
-        )
+        logger.info(f"Successfully uploaded dataset to HuggingFace Hub as '{dataset_name}'")
     except Exception as e:
         logger.error(f"Failed to upload dataset to HuggingFace Hub: {e}")
 
