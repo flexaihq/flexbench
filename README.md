@@ -128,7 +128,7 @@ For more details on the MLPerf Inference Benchmark and the design of modes and m
 
 ## Device Support
 
-FlexBench automatically detects your hardware with `--device-type auto` (default):
+Whenever running without specifying a vLLM server, FlexBench automatically detects your hardware with `--device-type auto` (default):
 
 **Detection Priority:** CUDA → ROCm → ARM → CPU
 
@@ -136,7 +136,7 @@ FlexBench automatically detects your hardware with `--device-type auto` (default
 |-------------|-------------------|--------------|----------|
 | **auto** | *Auto-detected* | *Varies by detected device* | Automatic hardware detection |
 | **cuda** | `vllm/vllm-openai:latest` | Pull from [registry](https://hub.docker.com/r/vllm/vllm-openai/tags) | NVIDIA GPUs |
-| **rocm** | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
+| **rocm** (WIP) | `rocm/vllm:latest` | Pull from [registry](https://hub.docker.com/r/rocm/vllm) | AMD GPUs |
 | **arm** | `vllm-arm-local:latest` | **Built from [source](https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.arm)** | ARM processors |
 | **cpu** | `public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.9.1` | Pull from [registry](https://gallery.ecr.aws/q9t5s3a7/vllm-cpu-release-repo) | CPU-only systems |
 

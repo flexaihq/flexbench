@@ -16,6 +16,24 @@ if "processor" not in st.session_state:
     st.session_state.processor.run()
 processor = st.session_state.processor
 
+# Accelerator color mapping (shared for all pages)
+df = processor.df
+gpu_names = sorted(df["system.accelerator.name"].drop_nulls().unique())
+color_palette = [
+    "#636EFA",
+    "#EF553B",
+    "#00CC96",
+    "#AB63FA",
+    "#FFA15A",
+    "#19D3F3",
+    "#FF6692",
+    "#B6E880",
+    "#FF97FF",
+    "#FECB52",
+]
+acc_color_mapping = {gpu: color_palette[i % len(color_palette)] for i, gpu in enumerate(gpu_names)}
+st.session_state.acc_color_mapping = acc_color_mapping
+
 with st.sidebar:
     with st.container(border=True):
         st.header("Accelerator Prices", anchor=False)

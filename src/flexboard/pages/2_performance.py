@@ -1,6 +1,6 @@
 import streamlit as st
 
-from flexboard.plots import metric_comparison_bar_plot
+from flexboard.plots import get_acc_color_mapping, metric_comparison_bar_plot
 from flexboard.processor import DataProcessor
 
 st.title("Performance Analysis", anchor=False)
@@ -14,9 +14,6 @@ models = sorted(model_counts.keys(), key=lambda m: model_counts[m], reverse=True
 
 submitters = sorted(df["submission.organization"].unique())
 accelerators = sorted(df["system.accelerator.name"].unique())
-
-# def model_format_func(m: str) -> str:
-#     return f"{m} ({model_counts[m]})"
 
 selected_model = st.selectbox(
     "Select Model",
@@ -42,8 +39,12 @@ if filtered_df.height == 0:
     st.stop()
 
 st.subheader("Performance Bar Plots", anchor=False, divider="gray")
-figs = metric_comparison_bar_plot(filtered_df, selected_model)
-for i, fig in enumerate(figs):
-    st.plotly_chart(fig, use_container_width=True)
-    if i < len(figs) - 1:
-        st.divider()
+figs_dict = metric_comparison_bar_plot(filtered_df, selected_model)
+acc_color_mapping = get_acc_color_mapping(filtered_df)
+tab1, tab2 = st.tabs(["Tokens/s", "Tokens/s/acc"])
+with tab1:
+    for fig in figs_dict["tokens"]:
+        st.plotly_chart(fig, use_container_width=True)
+with tab2:
+    for fig in figs_dict["tokens_per_acc"]:
+        st.plotly_chart(fig, use_container_width=True)
