@@ -45,7 +45,7 @@ gpu_a = col1.selectbox(
     gpu_names,
     key="cost.gpu_a",
     index=0,
-    format_func=lambda gpu: f"{gpu} ({processor.price_mapping.get(gpu)} USD/hr)",
+    format_func=lambda gpu: f"{gpu} ({processor.price_mapping.get(gpu, 1.0)} USD/hr)",
 )
 col2.markdown("#### System B (Comparison)")
 gpu_b = col2.selectbox(
@@ -53,7 +53,7 @@ gpu_b = col2.selectbox(
     gpu_names,
     key="cost.gpu_b",
     index=1,
-    format_func=lambda gpu: f"{gpu} ({processor.price_mapping.get(gpu)} USD/hr)",
+    format_func=lambda gpu: f"{gpu} ({processor.price_mapping.get(gpu, 1.0)} USD/hr)",
 )
 
 acc_counts_a = sorted(
