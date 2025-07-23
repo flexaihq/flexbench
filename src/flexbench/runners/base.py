@@ -95,7 +95,7 @@ class BaseBackend(ABC):
                 json={
                     "model": self.config.remote_model_path,
                     "prompt": inputs,
-                    "max_tokens": getattr(self, "max_tokens", 1024),
+                    "max_tokens": self.config.max_generated_tokens,
                     "temperature": 0,
                     "stream": stream,
                     "min_tokens": 1,
