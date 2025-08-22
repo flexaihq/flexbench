@@ -163,7 +163,8 @@ class DockerOrchestrator:
                 "start_period": "180s",
             },
             "command": [
-                "--model",
+                "vllm",
+                "serve",
                 self.config.benchmark_config.remote_model_path,
                 "--host",
                 "0.0.0.0",
@@ -211,8 +212,9 @@ class DockerOrchestrator:
 
         elif device_type == "rocm":
             config["environment"]["ROCR_VISIBLE_DEVICES"] = ",".join(gpu_devices)
+            config["environment"]["HIP_VISIBLE_DEVICES"] = ",".join(gpu_devices)
             config["devices"] = ["/dev/kfd", "/dev/dri"]
-            config["group_add"] = ["video", "render"]
+            config["group_add"] = ["video"]
 
         elif device_type in ("cpu", "arm"):
             config["environment"]["VLLM_TARGET_DEVICE"] = "cpu"
